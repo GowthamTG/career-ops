@@ -1,0 +1,128 @@
+# config/naukri-answers.example.yml
+#
+# Reference sheet naukri-auto-apply.mjs reads to answer each job's chatbot
+# screening questions WITHOUT calling any LLM API and WITHOUT asking you
+# interactively. Copy this file to config/naukri-answers.yml and fill in
+# your real numbers — the script never guesses: any question it can't map
+# to something in here (or in config/profile.yml) causes it to abandon
+# that one application and log it for you to review, never to fabricate
+# an answer.
+#
+# Fields that already live in config/profile.yml — notice_period_days
+# (under cover_letter), compensation.target_range, location/relocation
+# policy — are read from there, not duplicated here.
+
+# Total years of professional experience. Used when a chatbot question asks
+# for "years of experience" but names no specific skill/topic (e.g. a bare
+# "How many years of experience do you have?").
+total_experience_years: 4
+
+# Current employer, used for "current company/organisation?" questions.
+current_company: "Lyric"
+
+# Skill/topic -> years of genuine hands-on experience. Keys are matched as
+# case-insensitive substrings against the chatbot's question text (the
+# longest matching key wins when several could match, e.g. "node.js" beats
+# "node"). A skill the chatbot asks about that is NOT listed here is
+# answered as 0 years (see unknown_skill_default) — never invented.
+skill_years:
+  react: 4
+  react.js: 4
+  reactjs: 4
+  javascript: 4
+  typescript: 4
+  next.js: 3
+  nextjs: 3
+  angular: 1
+  node: 3
+  node.js: 3
+  nodejs: 3
+  python: 2
+  go: 1
+  golang: 1
+  sql: 3
+  fullstack: 3
+  full-stack: 3
+  full stack: 3
+  frontend: 4
+  front-end: 4
+  front end: 4
+  backend: 3
+  back-end: 3
+  back end: 3
+  rest api: 4
+  aws: 2
+  gcp: 1
+  docker: 1
+  git: 4
+  java: 0
+  vue: 0
+  vue.js: 0
+
+# What to do when a "years of experience in X" question names a skill/topic
+# that is NOT a key in skill_years above:
+#   zero — answer honestly as 0 years / the lowest available option (default)
+#   skip — abandon the whole application instead of guessing
+unknown_skill_default: zero
+
+# Yes/No answer for "are you currently holding any other offers?" questions.
+# Set to null to skip any application that asks this rather than answer it.
+holding_offers: no
+
+# Relocation policy, used for "are you currently living in X / willing to
+# relocate to X / ready for N days work from office in X?" questions. A city
+# named in the question is checked against these two lists; a city in
+# neither list causes the application to be skipped rather than guessed at.
+relocation:
+  already_located_in: ["bangalore", "bengaluru"]
+  open_to_in_india: ["bangalore", "bengaluru", "chennai"]
+  open_to_abroad: true
+  # Fallback for a relocation question that names NO specific city (e.g. a
+  # bare "open to relocation?"): "yes", "no", or null to skip.
+  default_answer: "yes"
+
+# Leave null to skip any question asking for a CTC figure (no honest number
+# on file). Set a number (in your currency, e.g. LPA) to enable auto-answering.
+current_ctc: null
+expected_ctc: null
+
+# ── Pre-open filters ─────────────────────────────────────────────────
+# Checked against each job CARD before the script even opens it.
+filters:
+  # Skip a job only when the card's salary is DISCLOSED and its top end is
+  # below this. Most Naukri listings say "Not Disclosed" — those are NOT
+  # skipped by this rule, only ones that positively show a range below it.
+  min_compensation_lpa: 30
+
+  # Company "industry" tag (shown on every card) that marks it as a
+  # services/staffing/consulting shop rather than a product company —
+  # excluded UNLESS the card discloses pay clearing min_compensation_lpa
+  # above (undisclosed pay does not earn the override).
+  exclude_industries:
+    - "IT Services & Consulting"
+    - "BPM / BPO"
+    - "BPO"
+    - "Recruitment"
+    - "Staffing"
+    - "Consulting"
+    - "Consultant"
+    - "Immigration"
+
+  # On-site/hybrid roles are only kept if the location is one of these
+  # (India), OR the location doesn't match any of the other major Indian
+  # cities listed below (treated as international -> allowed), OR the
+  # listing is Remote (always allowed, any location).
+  allowed_indian_cities:
+    - "bangalore"
+    - "bengaluru"
+    - "chennai"
+  other_indian_cities_excluded:
+    - "mumbai"
+    - "delhi"
+    - "ncr"
+    - "gurgaon"
+    - "gurugram"
+    - "noida"
+    - "pune"
+    - "hyderabad"
+    - "kolkata"

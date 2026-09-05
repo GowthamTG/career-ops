@@ -17,8 +17,9 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
+import { getCareerOpsRoot } from './path-resolver.mjs';
 
-const ROOT = process.cwd();
+const ROOT = getCareerOpsRoot();
 const SESSION_DIR = join(ROOT, 'data', '.naukri-session');
 const STORAGE_STATE = join(SESSION_DIR, 'state.json');
 

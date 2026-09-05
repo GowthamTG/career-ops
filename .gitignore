@@ -38,6 +38,16 @@ jds/*
 *简历*
 *学位*
 *成绩单*
+# Generated CVs/cover letters saved manually at the repo root instead of
+# output/ — same PII as anything under output/*, just outside that gate.
+/*.pdf
+# Raw JD scrapes/captures dropped at the repo root instead of jds/.
+/role-*.md
+# Batch evaluation output is personal (real company names, scores, notes) —
+# only README.md and scripts are meant to be tracked in batch/ (see AGENTS.md).
+batch/*.md
+!batch/README.md
+batch/tracker-additions/*.md
 
 # Interview prep (accumulated STAR+R stories — user data)
 interview-prep/*
@@ -58,6 +68,7 @@ writing-samples/*
 config/profile.yml
 config/cv-facts.json
 config/benchmarks.yml
+config/naukri-answers.yml
 # Fork-local path declarations — this checkout's own files, read by
 # update-system.mjs. Gitignored on purpose: it describes THIS clone, not the
 # project, and must survive the sync that overwrites update-system.mjs (#2421).

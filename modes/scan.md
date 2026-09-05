@@ -153,6 +153,11 @@ The `search_queries` with `site:` filters cover portals transversally (all Ashby
 
 > **Caution — Level-3 hits can be weeks stale.** WebSearch is fed by a search index that lags the live board, so a result can describe a posting that has already closed. Treat every Level-3 hit as unverified: before adding it to `data/pipeline.md` or evaluating it, confirm liveness against the real posting (`node check-liveness.mjs <url>` for ATS-hosted pages, or Playwright for non-ATS pages). Unlike the real-time ATS responses in Level 2, a Level-3 snippet is never proof a role is still open.
 
+> **Caution — social-post queries (`linkedin.com/posts`, `x.com`/`twitter.com`) are a lower-trust sub-tier of Level 3.** See the comment block above the "Social post discovery" queries in `portals.yml` for the full rationale (heavy duplication with the direct ATS scan, aggregator/bot noise, and an observed unsolicited-DM scam pattern). Before adding any hit from these queries to `data/pipeline.md`:
+> 1. Skip it if the named company is already in `tracked_companies` — the real posting is (or will be) covered directly.
+> 2. Skip it outright if there is no identifiable company name, or the post asks for an unsolicited DM/portfolio drop with no ATS link — do not evaluate, do not add, just move on.
+> 3. Otherwise, verify the company is real (site, team, product) before adding — same bar as any other unverified Level-3 hit, applied more strictly.
+
 **Execution Priority:**
 1. Level 0: Local Parser → companies with a configured `parser:` and existing script; build `local_parser_ok`
 2. Level 1: Playwright → `tracked_companies` with a `careers_url`, **except** `local_parser_ok`

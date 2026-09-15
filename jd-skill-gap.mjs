@@ -27,7 +27,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { canonicalize, extractSkills } from './skill-extract.mjs';
+import { canonicalize, extractSkills, skillMentionedInText } from './skill-extract.mjs';
 import { isMainModule } from './lib/is-main-module.mjs';
 import { join } from 'path';
 import { getCareerOpsRoot } from './path-resolver.mjs';
@@ -346,20 +346,9 @@ function diagnoseExtraction(jdText, jdSkills) {
   };
 }
 
-// ── Word-boundary text matching (same technique as Resume-Matcher's
-//    _skill_mentioned_in_text — prevents "Java" matching inside "JavaScript") ──
-
-/**
- * Word-boundary, case-insensitive check for whether a skill token appears in text.
- * @param {string} skill
- * @param {string} text
- * @returns {boolean}
- */
-function skillMentionedInText(skill, text) {
-  const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`(?<![\\w])${escaped}(?![\\w])`, 'i');
-  return re.test(text);
-}
+// ── Word-boundary text matching (skillMentionedInText, same technique as
+//    Resume-Matcher's _skill_mentioned_in_text) now lives in skill-extract.mjs
+//    so verify-ats.mjs's --keywords coverage can share the same matcher. ──
 
 // ── Skills-section split ─────────────────────────────────────────────
 //

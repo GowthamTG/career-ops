@@ -56,7 +56,8 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
     - The rendered PDF has a two-page warning threshold by default. `--max-pages=N` accepts a positive integer; pass `--max-pages=1` when the user or market prefers a one-page CV.
     - If the rendered PDF exceeds its threshold, generation warns loudly with the actual and allowed page counts plus trimming guidance, then reports and indexes the unchanged PDF so existing longer-CV flows keep working.
     - Pass `--strict-pages` only when the user or market requires a hard limit. Strict overflow leaves the draft available for inspection but does not report or index it as successful; trim lower-priority content and rerun.
-22. Report: PDF path, number of pages, keyword coverage %, and any skill gaps from Step 4 still unaddressed
+22. Score the generated HTML for ATS-friendliness and real JD-keyword coverage — deterministic, advisory, never a generation gate (only `verify-cv-facts.mjs` at Step 19 blocks generation): `node verify-ats.mjs {html-path} --keywords "{step-3-keywords}" --json`. Read `score`, `grade`, `issues[]`, and `keywordCoverage.{percent,missing}` from the JSON. Use `keywordCoverage.percent`/`.missing` verbatim in Step 23's report — never an LLM-estimated coverage number. Treat `score < 90` (below grade A) as "needs attention": carry its `issues[]` messages into Step 23's report so the user sees concrete, fixable structural gaps, not just a number.
+23. Report: PDF path, number of pages, ATS score/grade and any `issues[]` from Step 22, real keyword coverage % and missing keywords from Step 22, and any skill gaps from Step 4 still unaddressed
 
 ## ATS Rules (clean parsing)
 
@@ -70,7 +71,7 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
 - Distributed JD keywords: Summary (top 5), first bullet of each role, Skills section
 - No hidden text, keyword stuffing, or white-font tricks. Optimize for parseability plus human review.
 
-**Optional parseability check:** after generating the HTML you can score it for ATS-friendliness with `node verify-ats.mjs output/cv-{candidate}-{company}.html` (see `modes/ats.md`). This is deterministic, read-only, and advisory — it reports a 0-100 score plus concrete issues but never blocks generation (unlike the `verify-cv-facts.mjs` fact gate in Step 18).
+**Parseability check:** `verify-ats.mjs` now runs automatically at Step 22 of the pipeline above for every generated CV — score, issues, and real keyword coverage are always part of Step 23's report, not something you have to remember to run separately. Run it manually (`node verify-ats.mjs output/cv-{candidate}-{company}.html`, see `modes/ats.md`) only to re-check a CV after a manual HTML edit, or one built outside this pipeline. It stays deterministic, read-only, and advisory — it never blocks generation (unlike the `verify-cv-facts.mjs` fact gate at Step 19).
 
 ## Recruiter Review Gates
 
@@ -81,11 +82,10 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
 
 ## PDF Design
 
-- **Fonts**: Space Grotesk (headings, 600-700) + DM Sans (body, 400-500)
-- **Fonts self-hosted**: `fonts/`
-- **Header**: name in Space Grotesk 24px bold + gradient line `linear-gradient(to right, hsl(187,74%,32%), hsl(270,70%,45%))` 2px + contact row
-- **Section headers**: Space Grotesk 13px, uppercase, letter-spacing 0.05em, color cyan primary
-- **Body**: DM Sans 11px, line-height 1.5
+- **Font**: static system-sans stack — `"Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif` (the `--font-family` token), used for both headings and body at different sizes/weights. Deliberately not a self-hosted webfont: an earlier Space Grotesk/DM Sans stack caused ATS-visible PDF text-extraction corruption (ligature and mid-word-space bugs). Every font in the current stack is already in `verify-ats.mjs`'s `ATS_SAFE_FONTS` allow-list. Do not reintroduce a self-hosted webfont without re-running `verify-ats.mjs` and confirming clean text extraction.
+- **Header**: name 24px bold in the same font + gradient line `linear-gradient(to right, hsl(187,74%,32%), hsl(270,70%,45%))` 2px + contact row
+- **Section headers**: 13px, uppercase, letter-spacing 0.05em, color cyan primary
+- **Body**: 11px, line-height 1.5
 - **Company names**: accent purple color `hsl(270,70%,45%)`
 - **Margins**: 0.6in
 - **Background**: pure white

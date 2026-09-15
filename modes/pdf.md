@@ -87,7 +87,8 @@ Run `npm run jd:similarity -- {bundle-root}/jd/current.md {bundle-root}/jd/previ
     - Gate it: `node verify-cv-facts.mjs output/cv-{candidate}-{company}-ats.html`. The fold cannot add a claim, but Step 19 allows fixing a gate failure in the styled **HTML**, and a fix made there never reaches the JSON this variant is built from. Gating the variant catches that drift instead of shipping it. If it fails, fix the Step 17 payload (not either HTML file), rebuild both, and re-run both gates.
     - No PDF by default: the user copies the text out of the HTML. If they want an uploadable file too, run `node generate-pdf.mjs output/cv-{candidate}-{company}-ats.html output/cv-{candidate}-{company}-ats-{YYYY-MM-DD}.pdf --format={letter|a4}` **without** `--report`. With `--report`, the ATS PDF would be indexed against the report and replace the styled pair the dashboard opens and regenerates.
 22. Verify ATS keyword coverage of the **tailored** CV against the role's evaluation report (when one exists): `node keyword-match.mjs "reports/{###}-{company-slug}-{YYYY-MM-DD}.md" --cv "{html-path}"`. Pass the report's full filename (e.g. `reports/008-acme-2026-09-28.md`), not the bare NNN that Step 21's `--report` takes, and keep both paths quoted. This text-extracts the HTML you just built and reports coverage %, present, thin, and missing keywords — the diagnostic for the document being sent. Surface any missing/thin keywords to the user (reformulate from real experience, never fabricate).
-23. Report: PDF path, number of pages, keyword coverage % (when Step 22 ran), the ATS variant's HTML path and any lint findings the user left open (when Step 21a ran), and any skill gaps from Step 4 still unaddressed
+23. Score the generated HTML for ATS-friendliness and real JD-keyword coverage — deterministic, advisory, never a generation gate (only `verify-cv-facts.mjs` at Step 19 blocks generation): `node verify-ats.mjs {html-path} --keywords "{step-3-keywords}" --json`. Read `score`, `grade`, `issues[]`, and `keywordCoverage.{percent,missing}` from the JSON. Use `keywordCoverage.percent`/`.missing` verbatim in Step 23's report — never an LLM-estimated coverage number. Treat `score < 90` (below grade A) as "needs attention": carry its `issues[]` messages into Step 23's report so the user sees concrete, fixable structural gaps, not just a number.
+24. Report: PDF path, number of pages, ATS score/grade and any `issues[]` from Step 23, real keyword coverage % and missing keywords from Steps 22 and 23, the ATS variant's HTML path and any lint findings the user left open (when Step 21a ran), and any skill gaps from Step 4 still unaddressed
 
 ## ATS Rules (clean parsing)
 
@@ -107,7 +108,7 @@ The bullets above are the rules. `templates/ats-rules.yml` is the same rules as 
 
 **What the lint cannot catch** (also in the YAML, under `cannot_catch`): it reads a template's HTML, so nothing about the *rendered text layer* is in scope. Two measured classes sit entirely outside it, and both satisfy every bullet above — CSS `::before` generated content combined with `position:absolute` (the marker glyph never enters the text stream), and `letter-spacing` / `font-variant: small-caps` fragmenting a heading into separate glyph runs (`PROFESSIONAL SUMMARY` extracts as `P R O F E S S I O N A L S U M M A RY`). Catching those needs a rendered PDF and a text extractor; this project extracts with `pdftotext -layout`. A clean lint is not an ATS pass.
 
-**Optional parseability check:** after generating the HTML you can score it for ATS-friendliness with `node verify-ats.mjs output/cv-{candidate}-{company}.html` (see `modes/ats.md`). This is deterministic, read-only, and advisory — it reports a 0-100 score plus concrete issues but never blocks generation (unlike the `verify-cv-facts.mjs` fact gate in Step 18).
+**Parseability check:** `verify-ats.mjs` now runs automatically at Step 22 of the pipeline above for every generated CV — score, issues, and real keyword coverage are always part of Step 23's report, not something you have to remember to run separately. Run it manually (`node verify-ats.mjs output/cv-{candidate}-{company}.html`, see `modes/ats.md`) only to re-check a CV after a manual HTML edit, or one built outside this pipeline. It stays deterministic, read-only, and advisory — it never blocks generation (unlike the `verify-cv-facts.mjs` fact gate at Step 19).
 
 The `ats` mode also has an earlier, **payload**-level stage (`ats-payload.mjs`), which necessarily runs before the HTML exists and so before the step above. It is **not** a step of this pipeline — whether `pdf` should emit an ATS variant in the same pass is still open in #3202 — but if a user asks for the `ats` mode, read `modes/ats.md` for both stages rather than only the score.
 
@@ -120,11 +121,10 @@ The `ats` mode also has an earlier, **payload**-level stage (`ats-payload.mjs`),
 
 ## PDF Design
 
-- **Fonts**: Space Grotesk (headings, 600-700) + DM Sans (body, 400-500)
-- **Fonts self-hosted**: `fonts/`
-- **Header**: name in Space Grotesk 24px bold + gradient line `linear-gradient(to right, hsl(187,74%,32%), hsl(270,70%,45%))` 2px + contact row
-- **Section headers**: Space Grotesk 13px, uppercase, letter-spacing 0.05em, color cyan primary
-- **Body**: DM Sans 11px, line-height 1.5
+- **Font**: static system-sans stack — `"Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif` (the `--font-family` token), used for both headings and body at different sizes/weights. Deliberately not a self-hosted webfont: an earlier Space Grotesk/DM Sans stack caused ATS-visible PDF text-extraction corruption (ligature and mid-word-space bugs). Every font in the current stack is already in `verify-ats.mjs`'s `ATS_SAFE_FONTS` allow-list. Do not reintroduce a self-hosted webfont without re-running `verify-ats.mjs` and confirming clean text extraction.
+- **Header**: name 24px bold in the same font + gradient line `linear-gradient(to right, hsl(187,74%,32%), hsl(270,70%,45%))` 2px + contact row
+- **Section headers**: 13px, uppercase, letter-spacing 0.05em, color cyan primary
+- **Body**: 11px, line-height 1.5
 - **Company names**: accent purple color `hsl(270,70%,45%)`
 - **Margins**: 0.6in
 - **Background**: pure white

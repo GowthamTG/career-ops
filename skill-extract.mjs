@@ -320,3 +320,20 @@ export function extractSkills(text) {
   if (SAFE_CERT_PATTERN.test(text)) found.add('SAFe');
   return found;
 }
+
+/**
+ * Word-boundary, case-insensitive check for whether a free-form phrase appears
+ * in text. Symbol-safe edges via lookaround (not \b), same technique as
+ * Resume-Matcher's _skill_mentioned_in_text — prevents "Java" matching inside
+ * "JavaScript". Fallback path for phrases outside SKILL_TOKENS (role titles,
+ * arbitrary JD phrases); canonicalize()/extractSkills() above remain the
+ * primary, alias-aware path for recognized skill tokens.
+ * @param {string} skill
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function skillMentionedInText(skill, text) {
+  const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?<![\\w])${escaped}(?![\\w])`, 'i');
+  return re.test(text);
+}

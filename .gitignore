@@ -327,3 +327,7 @@ web/out/
 # Regenerate with `npm run harvest:buildlist`.
 buildlist-*.yml
 buildlist-*.yml.progress.json
+
+# Personal, never pushed: private playbook and local Supabase CLI state
+CLAUDE.local.md
+supabase/.temp/

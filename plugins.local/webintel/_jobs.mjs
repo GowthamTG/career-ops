@@ -21,6 +21,7 @@ const BOARD_PATTERNS = [
 
 /** Hosts with a company slug but no free provider yet (still useful to name the company). */
 const SLUG_HOSTS = [
+  /^([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com$/i,
   /^([a-z0-9-]+)\.keka\.com$/i, /^([a-z0-9-]+)\.zohorecruit\.(com|in)$/i, /^([a-z0-9-]+)\.freshteam\.com$/i,
   /^([a-z0-9-]+)\.applytojob\.com$/i, /^([a-z0-9-]+)\.kula\.ai$/i,
 ];
@@ -47,6 +48,12 @@ export function boardOf(url) {
     }
   }
   return null;
+}
+
+/** Title-case an all-caps or all-lowercase name ("SWIGGY" → "Swiggy"); keep mixed case ("ClickHouse"). @param {string} name */
+export function humanizeName(name) {
+  const n = String(name).trim();
+  return n === n.toUpperCase() || n === n.toLowerCase() ? humanize(n.toLowerCase()) : n;
 }
 
 /** Best-effort employer name from the URL; '?' (tracker convention) when unknown. @param {string} url */
@@ -84,12 +91,31 @@ export function cleanTitle(title, company) {
 }
 
 /**
+ * The employer named in a page title ("Senior Engineer at Josys | Emploive",
+ * "Engineer @ Clickhouse"). Titles usually name the real employer even when the
+ * page is on a board or aggregator, so this wins over the hostname.
+ * @param {string|null} title
+ * @returns {{ role: string, company: string } | null}
+ */
+export function splitTitleCompany(title) {
+  const t = String(title || '').replace(/^job application for\s+/i, '').split(/\s+[|•·]\s+/)[0].trim();
+  const m = t.match(/^(.+?)\s+(?:at|@)\s+([^@]+)$/i);
+  if (!m) return null;
+  const company = m[2].split(/\s+[–—]\s+|\s+·\s+/)[0].replace(/[…,.\s]+$/, '').trim();
+  if (!company || company.length > 60) return null;
+  return { role: m[1].trim(), company };
+}
+
+/**
  * @param {{ url: string, title: string|null }} hit
  * @returns {{ title: string, url: string, company: string, location: string } | null}
  */
 export function hitToJob(hit) {
-  const company = companyFromUrl(hit.url);
-  const title = cleanTitle(hit.title, company);
+  const fromTitle = splitTitleCompany(hit.title);
+  // A truncated "… at…" title names no one; drop the dangling "at".
+  const raw = fromTitle ? fromTitle.role : String(hit.title || '').replace(/\s+(?:at|@)\s*…$/i, '');
+  const company = fromTitle ? humanizeName(fromTitle.company) : companyFromUrl(hit.url);
+  const title = cleanTitle(raw, company);
   if (!title) return null;
   // Location is left empty on purpose: scan.mjs passes empty locations, and the
   // gate reads the real location/remote scope from the JD text later.

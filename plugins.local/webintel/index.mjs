@@ -20,7 +20,7 @@ import path from 'path';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { getCareerOpsRoot } from '../../path-resolver.mjs';
 import { createWebIntel } from './_capabilities.mjs';
-import { DENY_HOSTS, FREE_ATS_HOSTS, hostInList } from './_policy.mjs';
+import { AGGREGATOR_HOSTS, DENY_HOSTS, FREE_ATS_HOSTS, hostInList } from './_policy.mjs';
 import { boardOf, hitToJob } from './_jobs.mjs';
 
 const BOARD_CANDIDATES_HEADER = 'date\tvendor\tslug\tcompany\tsample_url\n';
@@ -71,7 +71,7 @@ export default {
       const dataDir = path.join(getCareerOpsRoot(), 'data');
       const wi = createWebIntel({ ctx, dataDir, settings: ctx.settings, caller: 'scan' });
       const includeDomains = asList(entry.include_domains);
-      const excludeDomains = [...new Set([...FREE_ATS_HOSTS, ...DENY_HOSTS, ...asList(entry.exclude_domains)])];
+      const excludeDomains = [...new Set([...FREE_ATS_HOSTS, ...DENY_HOSTS, ...AGGREGATOR_HOSTS, ...asList(entry.exclude_domains)])];
       const hours = Number(entry.min_interval_hours);
       const days = Number(entry.published_within_days);
       let hits = [];
@@ -91,7 +91,7 @@ export default {
       const jobs = hits
         .filter((h) => {
           const host = new URL(h.url).hostname;
-          return !hostInList(host, DENY_HOSTS) && !hostInList(host, FREE_ATS_HOSTS);
+          return !hostInList(host, DENY_HOSTS) && !hostInList(host, FREE_ATS_HOSTS) && !hostInList(host, AGGREGATOR_HOSTS);
         })
         .map(hitToJob)
         .filter(Boolean);

@@ -8,7 +8,7 @@ import { createBudget, parseLedger } from '../_budget.mjs';
 import { createCache } from '../_cache.mjs';
 import { withRetry } from '../_retry.mjs';
 import { CODES, WebError, classifyHttpError } from '../_errors.mjs';
-import { companyFromUrl, cleanTitle, hitToJob, boardOf } from '../_jobs.mjs';
+import { companyFromUrl, cleanTitle, hitToJob, boardOf, splitTitleCompany } from '../_jobs.mjs';
 import { isThin, toPlainText } from '../_capabilities.mjs';
 import { tightenOnly } from '../_load.mjs';
 import { clock, tempDir, httpError } from './_helpers.mjs';
@@ -142,4 +142,15 @@ test('load: caller overrides can only tighten caps', () => {
   assert.equal(tightenOnly({ max_searches_per_run: 10 }, { max_searches_per_run: 500 }).max_searches_per_run, 10);
   assert.equal(tightenOnly({}, { max_searches_per_run: 5 }).max_searches_per_run, 5);
   assert.equal(tightenOnly({}, { max_searches_per_run: 99 }).max_searches_per_run, 15);
+});
+
+test('jobs: employer from real-world titles and Workday hosts (2026-09-22 discovery sample)', () => {
+  const j = (url, title) => { const r = hitToJob({ url, title }); return r && `${r.company} | ${r.title}`; };
+  assert.equal(j('https://emploive.com/x', 'Senior Backend Engineer (Node.Js) at Josys | Emploive'), 'Josys | Senior Backend Engineer (Node.Js)');
+  assert.equal(j('https://simplify.jobs/p/1', 'Senior Software Engineer @ Clickhouse | Simplify Jobs'), 'Clickhouse | Senior Software Engineer');
+  assert.equal(j('https://jobs.smartrecruiters.com/Swiggy/1', 'Software Dev Engineer II at SWIGGY'), 'Swiggy | Software Dev Engineer II');
+  assert.equal(j('https://jobspring.pro/x', 'Senior Software Engineer - AI/ML at ClickHouse — Canada | JobSpring'), 'ClickHouse | Senior Software Engineer - AI/ML');
+  assert.equal(j('https://fractal.wd1.myworkdayjobs.com/x', 'Full Stack Senior Engineer (React+Python)'), 'Fractal | Full Stack Senior Engineer (React+Python)');
+  assert.equal(j('https://confidential.careers/x', 'Senior Backend Engineer - Remote at…'), 'Confidential | Senior Backend Engineer - Remote');
+  assert.equal(splitTitleCompany('Senior Frontend Engineer'), null);
 });

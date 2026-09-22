@@ -1,0 +1,11 @@
+{
+  "requestId": "req_search_1",
+  "resolvedSearchType": "neural",
+  "results": [
+    { "id": "https://apply.workable.com/acme-labs/j/ABC123/", "url": "https://apply.workable.com/acme-labs/j/ABC123/", "title": "Senior Frontend Engineer - Acme Labs", "publishedDate": "2026-09-10T00:00:00.000Z", "author": null },
+    { "id": "https://careers.examplecorp.co.in/jobs/42", "url": "https://careers.examplecorp.co.in/jobs/42", "title": "Full Stack Engineer (React/Node) | ExampleCorp Careers", "publishedDate": null },
+    { "id": "not-a-url", "url": "javascript:alert(1)", "title": "junk" }
+  ],
+  "searchTime": 812,
+  "costDollars": { "total": 0.007, "search": { "neural": 0.007 } }
+}

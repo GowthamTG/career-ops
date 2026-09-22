@@ -18,6 +18,19 @@ export const DENY_HOSTS = Object.freeze([
   'ziprecruiter.com', 'simplyhired.com', 'jooble.org', 'talent.com', 'internshala.com', 'shine.com',
   'workatastartup.com', 'builtin.com', 'x.com', 'twitter.com', 'facebook.com', 'instagram.com',
   'cutshort.io', 'hirist.tech', 'hirist.com', 'instahyre.com',
+  'clanx.ai', 'builtinbengaluru.in',
+]);
+
+/**
+ * Job aggregators and scraper sites seen in real discovery results (2026-09-22).
+ * They re-list other companies' postings, often stale or truncated, so paid
+ * discovery excludes them; the employer's own posting is what we want.
+ */
+export const AGGREGATOR_HOSTS = Object.freeze([
+  'emploive.com', 'confidential.careers', 'digitalxnode.com', 'unojobs.com', 'jobspring.pro',
+  'simplify.jobs', 'wfh.team', 'zya.me', 'fast-page.org', 'angelandgenie.com', 'weekday.works',
+  'jooble.org', 'adzuna.in', 'adzuna.com', 'careerjet.co.in', 'careerjet.com', 'jobrapido.com',
+  'whatjobs.com', 'jobleads.com', 'bebee.com', 'tallo.com', 'himalayas.app', 'remoterocketship.com',
 ]);
 
 /**

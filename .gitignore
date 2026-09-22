@@ -269,3 +269,7 @@ documents/*
 # PII (e.g. cv/jane-doe-master-cv.pdf). #1723
 data/intake-state.json
 data/agent-inbox.md
+
+# Personal, never pushed: private playbook and local Supabase CLI state
+CLAUDE.local.md
+supabase/.temp/

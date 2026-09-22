@@ -1174,7 +1174,7 @@ try {
 
 // Test --window flag
 const windowOut = execFileSync('node', [scriptPath, '--window', '30'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 const windowJson = JSON.parse(windowOut);
@@ -1192,7 +1192,7 @@ eq('--window sets windowDays in metadata', windowJson.metadata.windowDays, 30);
 // two branches can each append to that list and merge without git ever
 // reporting a conflict, so nothing outside a running CLI catches it.
 const minSpanOut = execFileSync('node', [scriptPath, '--min-span', '3'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 const minSpanJson = JSON.parse(minSpanOut);
@@ -1200,14 +1200,14 @@ eq('--min-span sets minSpanDays in metadata', minSpanJson.metadata.minSpanDays, 
 
 // Test --summary flag
 const summaryOut = execFileSync('node', [scriptPath, '--summary'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 ok('--summary produces human-readable output', summaryOut.includes('Repost Detector'));
 
 // Test no args (default JSON output)
 const defaultOut = execFileSync('node', [scriptPath], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 const defaultJson = JSON.parse(defaultOut);
@@ -1218,7 +1218,7 @@ eq('default windowDays = 90', defaultJson.metadata.windowDays, 90);
 
 // Test --window with non-numeric value (falls back to default)
 const badWindowOut = execFileSync('node', [scriptPath, '--window', 'abc'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 const badWindowJson = JSON.parse(badWindowOut);
@@ -1232,7 +1232,7 @@ eq('--window abc falls back to 90', badWindowJson.metadata.windowDays, 90);
 // now a validateFlags usage error, before the script ever computes a window.
 try {
   execFileSync('node', [scriptPath, '--window'], {
-    encoding: 'utf-8', timeout: 10000,
+    encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
     cwd: dirname(scriptPath),
   });
   ok('--window without value exits non-zero', false);
@@ -1243,7 +1243,7 @@ try {
 
 // Test --help flag
 const helpOut = execFileSync('node', [scriptPath, '--help'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 ok('--help prints usage', helpOut.includes('Usage:'));
@@ -1256,19 +1256,19 @@ ok('--help documents --help', helpOut.includes('--help'));
 // --min-span in both accepted forms, since it reads through flagValue. The
 // `=` form is the one a hand-rolled indexOf() lookup drops silently.
 const spanEqOut = execFileSync('node', [scriptPath, '--min-span=30'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 eq('--min-span=30 is honoured (not silently dropped)', JSON.parse(spanEqOut).metadata.minSpanDays, 30);
 
 const spanSpaceOut = execFileSync('node', [scriptPath, '--min-span', '30'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 eq('--min-span 30 is honoured', JSON.parse(spanSpaceOut).metadata.minSpanDays, 30);
 
 const badSpanOut = execFileSync('node', [scriptPath, '--min-span', 'abc'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 eq('--min-span abc falls back to 1', JSON.parse(badSpanOut).metadata.minSpanDays, 1);
@@ -1287,7 +1287,7 @@ const flagFallbackCases = [
 ];
 for (const [flag, value, field, expected, label] of flagFallbackCases) {
   const out = execFileSync('node', [scriptPath, flag, value], {
-    encoding: 'utf-8', timeout: 10000,
+    encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
     cwd: dirname(scriptPath),
   });
   eq(label, JSON.parse(out).metadata[field], expected);
@@ -1308,7 +1308,7 @@ try {
 // 0 remains a legitimate explicit value on both flags — the fallback rules must
 // not swallow it, or the floor could never be switched off on purpose.
 const zeroSpanOut = execFileSync('node', [scriptPath, '--min-span', '0'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 eq('--min-span 0 is honoured as an explicit zero', JSON.parse(zeroSpanOut).metadata.minSpanDays, 0);
@@ -1326,7 +1326,7 @@ const overflowCases = [
 ];
 for (const [flag, value, field, expected, label] of overflowCases) {
   const out = execFileSync('node', [scriptPath, flag, value], {
-    encoding: 'utf-8', timeout: 10000,
+    encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
     cwd: dirname(scriptPath),
   });
   const meta = JSON.parse(out).metadata;
@@ -1337,7 +1337,7 @@ for (const [flag, value, field, expected, label] of overflowCases) {
 // consumer reads to learn which rules produced the clusters. `null` there means
 // an Infinity got through.
 const metaSanity = JSON.parse(execFileSync('node', [scriptPath, '--min-span', '9'.repeat(400)], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 })).metadata;
 ok('metadata.minSpanDays is always a finite number, never null', Number.isFinite(metaSanity.minSpanDays));
@@ -1345,7 +1345,7 @@ ok('metadata.windowDays is always a finite number, never null', Number.isFinite(
 
 // Test -h flag
 const hOut = execFileSync('node', [scriptPath, '-h'], {
-  encoding: 'utf-8', timeout: 10000,
+  encoding: 'utf-8', timeout: 10000, maxBuffer: 256 * 1024 * 1024,
   cwd: dirname(scriptPath),
 });
 ok('-h prints usage', hOut.includes('Usage:'));

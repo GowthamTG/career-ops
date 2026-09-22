@@ -283,3 +283,7 @@ data/interview-prep/
 /tectonic.exe
 /tectonic.part
 /tectonic.part.exe
+
+# Personal, never pushed: private playbook and local Supabase CLI state
+CLAUDE.local.md
+supabase/.temp/

@@ -303,3 +303,7 @@ data/interview-prep/
 .next/
 web/.next/
 web/out/
+
+# Personal, never pushed: private playbook and local Supabase CLI state
+CLAUDE.local.md
+supabase/.temp/

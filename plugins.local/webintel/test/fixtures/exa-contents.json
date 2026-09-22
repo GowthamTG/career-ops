@@ -1,0 +1,14 @@
+{
+  "requestId": "req_contents_1",
+  "results": [
+    { "id": "https://careers.good.example/jobs/1", "url": "https://careers.good.example/jobs/1", "title": "Senior Software Engineer", "text": "About the role\n\nWe are hiring a Senior Software Engineer to build our analytics platform with React and TypeScript. You will own data visualisation features end to end, design APIs in Node.js, and work with ClickHouse. Requirements: 4+ years of experience building web applications, strong TypeScript, experience with data-heavy UIs. Location: Bangalore or remote within India. Benefits include health insurance and learning budget. [Apply](https://careers.good.example/apply) ![logo](https://x/logo.png)" },
+    { "id": "https://spa.example/jobs/2", "url": "https://spa.example/jobs/2", "title": "Loading", "text": "You need to enable JavaScript to run this app." }
+  ],
+  "statuses": [
+    { "id": "https://careers.good.example/jobs/1", "status": "success", "source": "cached" },
+    { "id": "https://spa.example/jobs/2", "status": "success", "source": "crawled" },
+    { "id": "https://gone.example/jobs/3", "status": "error", "error": { "tag": "CRAWL_NOT_FOUND", "httpStatusCode": 404 } },
+    { "id": "https://slow.example/jobs/4", "status": "error", "error": { "tag": "CRAWL_LIVECRAWL_TIMEOUT" } }
+  ],
+  "costDollars": { "total": 0.002 }
+}

@@ -88,3 +88,35 @@ test('firecrawl credits: reads data envelope or bare object', () => {
   assert.equal(normalizeFirecrawlCredits({ remainingCredits: 5 }).remaining, 5);
   assert.throws(() => normalizeFirecrawlCredits({}), (e) => e.code === CODES.MALFORMED);
 });
+
+// ── Recorded real responses (Phase 0 spike, 2026-09-22) ─────────────────────
+// Captured from the live APIs with the free-tier keys; no secrets in the bodies.
+
+test('recorded exa /search: real response maps cleanly (path-prefixed includeDomains honored)', () => {
+  const r = normalizeExaSearch(fixture('recorded-exa-search.json'), 'x');
+  assert.ok(r.hits.length >= 1);
+  assert.ok(r.hits.every((h) => h.url.startsWith('https://jobs.smartrecruiters.com/Freshworks/')));
+  assert.equal(r.costUsd, 0.007);
+  assert.match(r.requestId, /^[0-9a-f]{32}$/);
+});
+
+test('recorded exa /contents: success + real 404 status (charged per successful page)', () => {
+  const urls = ['https://en.wikipedia.org/wiki/Job_description', 'https://example.com/this-page-does-not-exist-xyz'];
+  const r = normalizeExaContents(fixture('recorded-exa-contents.json'), urls);
+  assert.equal(r.docs.size, 1);
+  assert.ok(r.docs.get(urls[0]).text.length > 100);
+  const dead = r.errors.get(urls[1]);
+  assert.equal(dead.code, CODES.NOT_FOUND);
+  assert.equal(dead.httpStatus, 404);
+  assert.equal(r.costUsd, 0.001);
+});
+
+test('recorded firecrawl /v2/scrape: real response, basic proxy costs 1 credit even on a cache hit', () => {
+  const json = fixture('recorded-firecrawl-scrape.json');
+  const r = normalizeFirecrawlScrape(json, 'https://example.com/');
+  assert.equal(r.error, null);
+  assert.equal(r.credits, 1);
+  assert.equal(r.statusCode, 200);
+  assert.match(r.doc.text, /Example Domain/);
+  assert.equal(json.data.metadata.proxyUsed, 'basic');
+});

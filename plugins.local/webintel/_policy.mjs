@@ -31,6 +31,8 @@ export const AGGREGATOR_HOSTS = Object.freeze([
   'simplify.jobs', 'wfh.team', 'zya.me', 'fast-page.org', 'angelandgenie.com', 'weekday.works',
   'jooble.org', 'adzuna.in', 'adzuna.com', 'careerjet.co.in', 'careerjet.com', 'jobrapido.com',
   'whatjobs.com', 'jobleads.com', 'bebee.com', 'tallo.com', 'himalayas.app', 'remoterocketship.com',
+  // seen in the first full --web run (2026-09-22)
+  'jobboard.co.in', 'joblaze.com', 'thejobcompany.co.in', 'jobs.generalcatalyst.com', 'getro.com',
 ]);
 
 /**

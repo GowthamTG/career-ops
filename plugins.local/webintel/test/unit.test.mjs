@@ -154,3 +154,9 @@ test('jobs: employer from real-world titles and Workday hosts (2026-09-22 discov
   assert.equal(j('https://confidential.careers/x', 'Senior Backend Engineer - Remote at…'), 'Confidential | Senior Backend Engineer - Remote');
   assert.equal(splitTitleCompany('Senior Frontend Engineer'), null);
 });
+
+test('jobs: board slugs become readable names', () => {
+  assert.equal(companyFromUrl('https://jobs.smartrecruiters.com/AbstrabitTechnologiesPvtLtd/1'), 'Abstrabit Technologies Pvt Ltd');
+  assert.equal(companyFromUrl('https://jobs.smartrecruiters.com/tieto2/1'), 'Tieto');
+  assert.equal(companyFromUrl('https://jobs.smartrecruiters.com/renesaselectronics/1'), 'Renesaselectronics');
+});

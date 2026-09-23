@@ -184,6 +184,22 @@ function containsTerm(text, term) {
 }
 
 /**
+ * Whole-word variant for the hard-DQ lists. Plain substring matching made
+ * "asic" hit "AWS basics", "sap" hit "ASAP", and "oidc"/"pki" hit inside other
+ * words, which failed good rows once more JD bodies were read. An edge that is
+ * itself punctuation (".net", "c++", "c#") needs no boundary on that side, so
+ * "ASP.NET" and "C++17" still match.
+ */
+export function containsDqTerm(text, term) {
+  const t = normalizeForMatch(term);
+  if (!t) return false;
+  const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pre = /^[a-z0-9]/.test(t) ? '(?<![a-z0-9])' : '';
+  const post = /[a-z0-9]$/.test(t) ? '(?![a-z0-9])' : '';
+  return new RegExp(`${pre}${esc}${post}`).test(normalizeForMatch(text));
+}
+
+/**
  * @returns {{ pass: boolean, reason: string }}
  */
 export function titleGate(title, positiveKeywords, negativeKeywords) {
@@ -195,7 +211,7 @@ export function titleGate(title, positiveKeywords, negativeKeywords) {
   if (hitNegative) {
     return { pass: false, reason: `title contains excluded term "${hitNegative}"` };
   }
-  const hitHardDq = HARD_DQ_TITLE_TERMS.find(kw => containsTerm(title, kw));
+  const hitHardDq = HARD_DQ_TITLE_TERMS.find(kw => containsDqTerm(title, kw));
   if (hitHardDq) {
     return { pass: false, reason: `title matches hard-DQ domain term "${hitHardDq}"` };
   }
@@ -406,7 +422,7 @@ export function compFloorGate(location, compCell, jdText, profile) {
 export function bodyHardDqGate(jdText) {
   if (!jdText) return { pass: true, reason: 'JD body unavailable — not checked' };
   const allTerms = [...HARD_DQ_TITLE_TERMS, ...HARD_DQ_BODY_ONLY_TERMS];
-  const hit = allTerms.find(kw => containsTerm(jdText, kw));
+  const hit = allTerms.find(kw => containsDqTerm(jdText, kw));
   if (hit) return { pass: false, reason: `JD body matches hard-DQ term "${hit}"` };
   return { pass: true, reason: 'no hard-DQ term found in JD body' };
 }
@@ -512,6 +528,26 @@ async function tryFetchJdText(url) {
 }
 
 /**
+ * Fill in JD text for title-passing rows the ATS APIs couldn't read, with one
+ * batched webintel fetch. A dry run never spends: it reads only what an earlier
+ * run already cached. Returns how many rows got text.
+ * @param {Map<object, string>} jdByRow  entry → JD text ('' when missing); updated in place
+ * @param {{ fetchPages: Function }} web
+ * @param {{ limit: number, dryRun: boolean }} opts
+ */
+export async function fillJdFromWeb(jdByRow, web, { limit, dryRun }) {
+  const missing = [...jdByRow].filter(([, t]) => !t).map(([e]) => e);
+  if (!missing.length) return 0;
+  const pages = await web.fetchPages(missing.map((e) => e.url), { limit, maxChars: JD_TEXT_CAP, cacheOnly: dryRun });
+  let filled = 0;
+  for (const e of missing) {
+    const doc = pages.get(e.url)?.doc;
+    if (doc?.text) { jdByRow.set(e, doc.text); filled += 1; }
+  }
+  return filled;
+}
+
+/**
  * Opt-in (--web): the free-tier webintel plugin, or null when it isn't installed
  * or enabled, in which case the gate behaves exactly as without --web.
  */
@@ -586,12 +622,7 @@ async function main(args) {
     const missing = [...jdByRow].filter(([, t]) => !t).map(([e]) => e);
     const web = missing.length ? await loadWeb() : null;
     if (web) {
-      // A dry run never spends: it reads only what an earlier run already cached.
-      const pages = await web.fetchPages(missing.map((e) => e.url), { limit: webLimit, maxChars: JD_TEXT_CAP, cacheOnly: dryRun });
-      for (const e of missing) {
-        const doc = pages.get(e.url)?.doc;
-        if (doc?.text) { jdByRow.set(e, doc.text); webCount += 1; }
-      }
+      webCount = await fillJdFromWeb(jdByRow, web, { limit: webLimit, dryRun });
       console.log(`  ${web.summary()}`);
     }
   }
@@ -646,6 +677,16 @@ function selfTest() {
   const check = (name, cond) => {
     if (cond) { pass += 1; } else { fail += 1; console.log(`  FAIL: ${name}`); }
   };
+
+  // Hard-DQ terms match whole words only (2026-09-22: "asic" was failing "AWS basics").
+  check('dq: asic not inside basics', !containsDqTerm('Expert in Linux and AWS basics.', 'asic'));
+  check('dq: sap not inside ASAP', !containsDqTerm('Join ASAP', 'sap'));
+  check('dq: asic whole word matches', containsDqTerm('ASIC verification', 'asic'));
+  check('dq: .net matches ASP.NET', containsDqTerm('Experience with ASP.NET Core', '.net'));
+  check('dq: c++ matches C++17', containsDqTerm('Modern C++17', 'c++'));
+  check('dq: c# matches', containsDqTerm('C#, TypeScript', 'c#'));
+  check('dq: embedded not inside embeddedness', !containsDqTerm('embeddedness', 'embedded'));
+  check('body gate passes a basics JD', bodyHardDqGate('Expert in Linux commands and AWS basics.').pass);
 
   const POS = ['Software Engineer', 'Platform Engineer', 'Frontend Engineer', 'Full Stack Engineer'];
   const NEG = ['Junior', 'Intern', 'Test Engineer', 'QA Engineer'];

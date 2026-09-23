@@ -28,9 +28,11 @@ const SLUG_HOSTS = [
 
 const TWO_PART_TLDS = new Set(['co.in', 'co.uk', 'com.au', 'co.jp', 'com.br', 'com.sg', 'org.in', 'net.in', 'ac.in']);
 
-/** "acme-labs" → "Acme Labs" @param {string} slug */
+/** "acme-labs" → "Acme Labs", "AbstrabitTechnologiesPvtLtd" → "Abstrabit Technologies Pvt Ltd", "tieto2" → "Tieto" @param {string} slug */
 export function humanize(slug) {
   return decodeURIComponent(String(slug || ''))
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/(?<=[a-z])\d+$/i, '')
     .replace(/[-_]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -61,7 +63,7 @@ export function companyFromUrl(url) {
   let u;
   try { u = new URL(url); } catch { return '?'; }
   const b = boardOf(url);
-  if (b) return humanize(b.slug);
+  if (b) return humanizeName(humanize(b.slug));
   for (const re of SLUG_HOSTS) {
     const m = u.hostname.match(re);
     if (m) return humanize(m[1]);

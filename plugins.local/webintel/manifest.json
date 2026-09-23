@@ -1,7 +1,7 @@
 {
   "id": "webintel",
   "name": "Web intelligence (Exa + Firecrawl, free tier)",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "apiVersion": 1,
   "description": "Budget-capped web discovery (Exa) and JD page text (Exa contents, Firecrawl fallback) for leads the free ATS scanners miss.",
   "hooks": ["provider"],

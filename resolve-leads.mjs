@@ -96,7 +96,11 @@ export function titleSimilarity(a, b) {
 const SENIOR_RE = /\b(senior|sr\.?|lead|staff|principal|iii|3)\b/i;
 
 /** A senior lead must not resolve to a role that does not say senior (it is often a junior req). */
+const ENTRY_RE = /\b(intern|internship|trainee|apprentice|fresher|new grad|graduate)\b/i;
+
 export function seniorityPenalty(leadTitle, jobTitle) {
+  // An intern/trainee posting never matches a lead that isn't one (Loop Health, 2026-09-22).
+  if (ENTRY_RE.test(String(jobTitle ?? '')) && !ENTRY_RE.test(String(leadTitle ?? ''))) return 1;
   return SENIOR_RE.test(String(leadTitle ?? '')) && !SENIOR_RE.test(String(jobTitle ?? '')) ? 0.3 : 0;
 }
 
@@ -194,10 +198,12 @@ function loadCache() {
  * @param {string} company
  * @param {{title: string, url: string, company: string}[]} jobs
  */
-export function sameCompanyJobs(company, jobs) {
+export function sameCompanyJobs(company, jobs, companyFromUrl) {
+  // The employer must be identified by WHERE the posting lives (its own domain
+  // or its own ATS board), never by the page title: aggregators copy the
+  // employer's name into their titles (seen live 2026-09-22 on joblaze.com).
   const key = normalizeCompany(company);
-  const lower = String(company).toLowerCase();
-  return jobs.filter((j) => normalizeCompany(j.company) === key || String(j.title).toLowerCase().includes(lower));
+  return jobs.filter((j) => normalizeCompany(companyFromUrl(j.url)) === key);
 }
 
 async function loadWeb(webLimit) {
@@ -214,19 +220,19 @@ async function loadWeb(webLimit) {
  * One Exa search per board-less company → candidate postings as Job-like rows.
  * Throws a retryable error for transient failures so the caller can retry later.
  */
-async function webCandidates(web, name, leadTitle, dryRun) {
-  const [{ hitToJob }, { DENY_HOSTS, FREE_ATS_HOSTS }] = await Promise.all([
+export async function webCandidates(web, name, leadTitle, dryRun) {
+  const [{ hitToJob, companyFromUrl }, { DENY_HOSTS, FREE_ATS_HOSTS, AGGREGATOR_HOSTS }] = await Promise.all([
     import('./plugins.local/webintel/_jobs.mjs'),
     import('./plugins.local/webintel/_policy.mjs'),
   ]);
   const hits = await web.searchWeb(`${name} ${leadTitle} job opening`, {
     numResults: 5,
     // Greenhouse/Lever/Ashby are excluded too: had the company been on one, resolveCompany would have found it.
-    excludeDomains: [...new Set([...LEAD_HOSTS, ...DENY_HOSTS, ...FREE_ATS_HOSTS])],
+    excludeDomains: [...new Set([...LEAD_HOSTS, ...DENY_HOSTS, ...FREE_ATS_HOSTS, ...AGGREGATOR_HOSTS])],
     cacheTtlMs: WEB_CACHE_MS,
     cacheOnly: dryRun,
   });
-  return sameCompanyJobs(name, hits.map(hitToJob).filter(Boolean));
+  return sameCompanyJobs(name, hits.map(hitToJob).filter(Boolean), companyFromUrl);
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -393,7 +399,11 @@ function selfTest() {
     { title: 'Senior Frontend Engineer', url: 'https://careers.harness.io/1', company: 'Harness' },
     { title: 'Senior Frontend Engineer', url: 'https://other.example/2', company: 'Other' },
   ];
-  check('sameCompanyJobs drops other employers', sameCompanyJobs('Harness', cands).length === 1);
+  const hostCo = (u) => ({ 'careers.harness.io': 'Harness', 'other.example': 'Other', 'joblaze.com': 'Joblaze' })[new URL(u).hostname];
+  check('sameCompanyJobs drops other employers', sameCompanyJobs('Harness', cands, hostCo).length === 1);
+  check('sameCompanyJobs ignores an aggregator that copies the name into its title',
+    sameCompanyJobs('Harness', [{ title: 'Backend Engineer at Harness', url: 'https://joblaze.com/jobs/1', company: 'Harness' }], hostCo).length === 0);
+  check('intern posting never matches a regular lead', pickMatch({ title: 'Software Engineer', location: 'Bangalore' }, [{ title: 'Software Engineer Intern', location: 'Bengaluru', url: 'https://x/i' }]) === null);
   const rwWeb = rewriteMatched(line, cands[0], 'instahyre.com, webintel');
   check('web match is tagged via webintel and handled', rwWeb.endsWith('| via: instahyre.com, webintel') && isHandled(rwWeb));
   console.log(`  resolve-leads self-test: ${pass} passed, ${fail} failed`);

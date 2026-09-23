@@ -1,0 +1,35 @@
+{
+  "requestId": "f60266adf6d4457c1c17ce39f23c7831",
+  "results": [
+    {
+      "id": "https://en.wikipedia.org/wiki/Job_description",
+      "title": "Job description",
+      "url": "https://en.wikipedia.org/wiki/Job_description",
+      "author": null,
+      "text": "Job description\n\nA job description or JD is a written narrative that describes the general tasks, or other related duties, and responsibilities of a position. It may specify the functionary to whom the position reports, specifications such as the qualifications or skills needed by the person in the job, information about the equipment, tools and work aids used, working conditions, physical demands, and a salary range. Job descriptions are usually narrative, [1] but some may comprise a simple list of competencies; for instance, strategic human resource planning methodologies may be used to develop a competency architecture for an organization, from which job descriptions are built as a shortlist of competencies. [2] [not specific enough to verify] \n\nAccording to Torrington, a job description is usually developed by conducting a job analysis, which includes examining the tasks and sequences of tasks necessary to perform the job. The analysis considers the areas of knowledge, skills and abilities needed to perform the job. Job analysis generally involves the following steps: collecting and recording job information; checking the job information for accuracy; writing job descriptions based on the information; using the information to determine what skills, abilities, and knowledge are required to perform the job; updating the information from time to time. [3] A job usually includes several roles. According to Hall, the job description might be broadened to form a person specific",
+      "image": "https://upload.wikimedia.org/wikipedia/en/thumb/9/99/Question_book-new.svg/60px-Question_book-new.svg.png"
+    }
+  ],
+  "statuses": [
+    {
+      "id": "https://en.wikipedia.org/wiki/Job_description",
+      "status": "success",
+      "source": "cached"
+    },
+    {
+      "id": "https://example.com/this-page-does-not-exist-xyz",
+      "status": "error",
+      "error": {
+        "httpStatusCode": 404,
+        "tag": "CRAWL_NOT_FOUND"
+      }
+    }
+  ],
+  "costDollars": {
+    "total": 0.001,
+    "contents": {
+      "text": 0.001
+    }
+  },
+  "searchTime": 172.71361699979752
+}

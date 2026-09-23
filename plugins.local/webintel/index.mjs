@@ -95,7 +95,9 @@ export default {
         })
         .map(hitToJob)
         .filter(Boolean);
-      recordBoardCandidates(dataDir, /** @type {any[]} */ (jobs));
+      // `node scan.mjs --dry-run` runs in this same process and must write nothing;
+      // the plugin ctx carries no dry-run flag for provider hooks, so read scan's own flag.
+      if (!process.argv.includes('--dry-run')) recordBoardCandidates(dataDir, /** @type {any[]} */ (jobs));
       if (wi.stats.exa.calls) console.log(`   ${wi.summary()}`);
       return jobs;
     },

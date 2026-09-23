@@ -254,6 +254,20 @@ export function buildDigest(lines, ctx, date) {
     if (rows.length > SECTION_CAP[k]) out += `\n_${rows.length - SECTION_CAP[k]} more not shown (cap ${SECTION_CAP[k]})._\n`;
     out += '\n';
   }
+  // Same company screens as the role sections: no IT services, agencies, blacklist or touched companies.
+  const boards = (ctx.boardCandidates || []).filter((b) => {
+    const key = companyKey(b.company);
+    return !IT_SERVICES.test(b.company) && !AGENCY.test(b.company) && !ctx.blacklist?.has(key) && (ctx.includeTouched || !ctx.touched?.has(key));
+  });
+  if (boards.length) {
+    out += `## New ATS boards found by web discovery
+
+`;
+    out += 'Adding one makes every future scan read that company\'s whole board for free: `node discover-ats.mjs --write <Company>`.\n\n';
+    out += '| Company | Board | Example posting |\n|---|---|---|\n';
+    for (const b of boards) out += `| ${esc(b.company)} | ${esc(b.vendor)}/${esc(b.slug)} | ${b.url} |\n`;
+    out += '\n';
+  }
   return { markdown: out, counts: Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, v.length])), considered, hiddenAbroad };
 }
 
@@ -279,6 +293,33 @@ function gateAll(label, web = false) {
     const webArgs = web && i === 0 ? ['--web'] : [];
     step(`${label} (${left} rows left)`, 'node', ['basic-validate-pipeline.mjs', '--limit', '1000', ...webArgs]);
   }
+}
+
+/**
+ * Boards web discovery found that portals.yml does not track yet
+ * (data/webintel-board-candidates.tsv, written by plugins.local/webintel).
+ * @param {string} [text]
+ */
+export function parseBoardCandidates(text) {
+  const lines = String(text || '').split('\n').filter(Boolean).slice(1);
+  const seen = new Set();
+  const out = [];
+  for (const l of lines) {
+    const [, vendor, slug, company, url] = l.split('\t');
+    if (!vendor || !slug) continue;
+    let tracked = '';
+    try { tracked = readFileSync(join(DATA_ROOT, 'portals.yml'), 'utf-8').toLowerCase(); } catch { /* optional */ }
+    const k = `${vendor}/${slug}`.toLowerCase();
+    if (seen.has(k) || tracked.includes(slug.toLowerCase())) continue;
+    seen.add(k);
+    out.push({ vendor, slug, company: company || slug, url: url || '' });
+  }
+  return out;
+}
+
+function loadBoardCandidates() {
+  const f = join(DATA_ROOT, 'data/webintel-board-candidates.tsv');
+  return existsSync(f) ? parseBoardCandidates(readFileSync(f, 'utf-8')) : [];
 }
 
 function today() {
@@ -354,6 +395,10 @@ function selfTest() {
   const readLine = '- [ ] https://boards.greenhouse.io/x/jobs/2 | Acme | Senior Frontend Engineer | Bengaluru, India | posted: 2026-09-18 | gate: PASS — title ok; on-site in an approved city; 3+ years stated, within range';
   const d = buildDigest([readLine, readLine], ctx, '2026-09-20');
   check('digest dedups by URL', d.counts.A === 1);
+  const bc = parseBoardCandidates('date\tvendor\tslug\tcompany\tsample_url\n2026-09-22\tworkable\tacme-zz9\tAcme Zz9\thttps://apply.workable.com/acme-zz9/j/1\n2026-09-22\tworkable\tacme-zz9\tAcme Zz9\thttps://apply.workable.com/acme-zz9/j/2\n2026-09-22\tworkable\tweekday-1\tWeekday-1\thttps://apply.workable.com/weekday-1/j/3\n');
+  check('board candidates dedupe by vendor/slug', bc.length === 2);
+  const dBoards = buildDigest([], { ...ctx, boardCandidates: bc }, '2026-09-22').markdown;
+  check('digest lists new boards, drops agencies', dBoards.includes('acme-zz9') && !dBoards.includes('weekday-1'));
   console.log(`  scan-shortlist self-test: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -380,7 +425,7 @@ async function main() {
   const lines = readFileSync(PIPELINE, 'utf-8').split('\n');
   const ai = args.indexOf('--max-age-days');
   const maxAgeDays = ai >= 0 ? Math.max(0, Number(args[ai + 1]) || 0) : 45;
-  const ctx = { blacklist: loadBlacklist(), touched: loadTouched(), includeTouched: args.includes('--include-touched'), maxAgeDays, now: Date.now() };
+  const ctx = { blacklist: loadBlacklist(), touched: loadTouched(), includeTouched: args.includes('--include-touched'), maxAgeDays, now: Date.now(), boardCandidates: loadBoardCandidates() };
   const date = today();
   const { markdown, counts, considered } = buildDigest(lines, ctx, date);
   const outPath = join(DATA_ROOT, `data/shortlist-${date}.md`);
@@ -388,11 +433,7 @@ async function main() {
   const mins = ((Date.now() - started) / 60000).toFixed(1);
   console.log(`\n✅ Digest: ${outPath}`);
   console.log(`   ${considered} rows considered -> A ${counts.A} | B ${counts.B} | C ${counts.C} | F ${counts.F} | D ${counts.D} | E ${counts.E}  (${mins} min)`);
-  const boards = join(DATA_ROOT, 'data/webintel-board-candidates.tsv');
-  if (existsSync(boards)) {
-    const n = readFileSync(boards, 'utf-8').split('\n').filter(Boolean).length - 1;
-    if (n > 0) console.log(`   ${n} board candidate(s) in data/webintel-board-candidates.tsv: add with \`node discover-ats.mjs --write <Company>\` to scan them free from then on.`);
-  }
+  if (ctx.boardCandidates.length) console.log(`   ${ctx.boardCandidates.length} new ATS board(s) from web discovery are listed at the end of the digest.`);
   if (web && !dry) step('Free-tier web budget (Exa/Firecrawl)', 'node', ['webintel.mjs', 'usage']);
 }
 

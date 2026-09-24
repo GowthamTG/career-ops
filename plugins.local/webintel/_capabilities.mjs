@@ -19,7 +19,7 @@ import path from 'path';
 import { CODES, NEGATIVE_CACHEABLE, WebError, classifyHttpError } from './_errors.mjs';
 import { createBudget, ESTIMATE } from './_budget.mjs';
 import { createCache, TTL } from './_cache.mjs';
-import { vetTargetUrl, hostInList } from './_policy.mjs';
+import { vetTargetUrl, hostInList, isSocialHit } from './_policy.mjs';
 import { exaSearch, exaContents, MAX_BATCH, MAX_RESULTS } from './_exa.mjs';
 import { firecrawlScrape, firecrawlCredits } from './_firecrawl.mjs';
 
@@ -75,7 +75,7 @@ export function createWebIntel({ ctx, dataDir, settings = {}, caller = 'cli', de
     cacheHit: 0, cacheMiss: 0, neg: 0, free: 0, thinToFirecrawl: 0, retries: 0, unresolved: 0,
     /** @type {Record<string, number>} */ errors: {},
   };
-  const runCount = { searches: 0, pages: 0 };
+  const runCount = { searches: 0, socialSearches: 0, pages: 0 };
   /** @type {Map<string, Promise<any>>} */
   const inflight = new Map();
   const warned = new Set();
@@ -122,17 +122,28 @@ export function createWebIntel({ ctx, dataDir, settings = {}, caller = 'cli', de
   /**
    * @param {string} query
    * @param {{ numResults?: number, includeDomains?: string[], excludeDomains?: string[],
-   *           publishedWithinDays?: number|null, cacheTtlMs?: number, cacheOnly?: boolean }} [opts]
+   *           publishedWithinDays?: number|null, cacheTtlMs?: number, cacheOnly?: boolean,
+   *           social?: boolean, textMaxChars?: number }} [opts]
    *   cacheOnly = answer from cache or throw DISABLED; never spend (dry runs)
+   *   social = social-post search: every include domain must be a social permalink
+   *            prefix, hits that are not social permalinks are dropped, and the
+   *            separate max_social_searches_per_run cap applies
+   *   textMaxChars = also return each hit's text from the index (capped)
    */
   async function searchWeb(query, opts = {}) {
+    const social = Boolean(opts.social);
     const q = {
       query: String(query || '').trim(),
       numResults: Math.min(MAX_RESULTS, opts.numResults ?? MAX_RESULTS),
       includeDomains: opts.includeDomains || [],
       excludeDomains: opts.excludeDomains || [],
       publishedWithinDays: opts.publishedWithinDays ?? null,
+      ...(opts.textMaxChars ? { textMaxChars: opts.textMaxChars } : {}),
+      ...(social ? { social: true } : {}),
     };
+    if (social && (!q.includeDomains.length || !q.includeDomains.every((d) => isSocialHit(`https://${d}/x`)))) {
+      throw new WebError(CODES.BAD_REQUEST, 'exa', 'social search must be pinned to social post domains (SOCIAL_SEARCH_HOSTS)');
+    }
     if (!q.query) throw new WebError(CODES.BAD_REQUEST, 'exa', 'empty query');
     const key = JSON.stringify(q);
     const hit = cache.get('search', key, opts.cacheTtlMs ?? TTL.search);
@@ -147,23 +158,32 @@ export function createWebIntel({ ctx, dataDir, settings = {}, caller = 'cli', de
       if (runCount.searches >= budget.settings.max_searches_per_run) {
         throw new WebError(CODES.BUDGET_EXHAUSTED, 'exa', `per-run search cap (${budget.settings.max_searches_per_run}) reached; the rest wait for the next run`);
       }
-      budget.check('exa', { usd: ESTIMATE.exaSearchUsd });
+      if (social && runCount.socialSearches >= budget.settings.max_social_searches_per_run) {
+        throw new WebError(CODES.BUDGET_EXHAUSTED, 'exa', `per-run social search cap (${budget.settings.max_social_searches_per_run}) reached; the rest wait for the next run`);
+      }
+      const estimate = ESTIMATE.exaSearchUsd + (q.textMaxChars ? ESTIMATE.exaPageUsd * q.numResults : 0);
+      budget.check('exa', { usd: estimate });
       runCount.searches++;
+      if (social) runCount.socialSearches++;
       const startPublishedDate = q.publishedWithinDays ? new Date(now() - q.publishedWithinDays * 86_400_000).toISOString() : null;
       let res;
       try {
-        res = await api.exaSearch(ctx, { ...q, startPublishedDate }, { sleep, now, onRetry });
+        const { social: _s, ...req } = q;
+        res = await api.exaSearch(ctx, { ...req, startPublishedDate }, { sleep, now, onRetry });
       } catch (raw) {
         const err = classifyHttpError(raw, 'exa');
         onFailure('exa', err, 'search');
         throw err;
       }
       onSuccess('exa');
-      const cost = res.costUsd ?? ESTIMATE.exaSearchUsd;
+      const cost = res.costUsd ?? estimate;
       stats.exa.calls++; stats.exa.usd += cost;
-      budget.record({ provider: 'exa', op: 'search', units: 1, costUsd: cost, requestId: res.requestId });
+      budget.record({ provider: 'exa', op: social ? 'search-social' : 'search', units: 1, costUsd: cost, requestId: res.requestId });
       // When the search was pinned to includeDomains, apply the exclude list here.
-      const hits = res.hits.filter((h) => !(q.includeDomains.length && q.excludeDomains.length && hostInList(new URL(h.url).hostname, q.excludeDomains)));
+      // Social mode keeps only post permalinks (never a profile, company or jobs page).
+      const hits = res.hits
+        .filter((h) => !(q.includeDomains.length && q.excludeDomains.length && hostInList(new URL(h.url).hostname, q.excludeDomains)))
+        .filter((h) => !social || isSocialHit(h.url));
       cache.put('search', key, hits);
       return hits;
     })();

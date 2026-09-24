@@ -22,6 +22,29 @@ export const DENY_HOSTS = Object.freeze([
 ]);
 
 /**
+ * Social post permalinks that may appear as SEARCH RESULTS in social mode
+ * (index.mjs → _social.mjs). They stay on DENY_HOSTS: vetTargetUrl() still
+ * refuses to fetch them, so a post is only ever read from the search index's
+ * own text, never requested from linkedin.com or x.com by us.
+ * Paths are prefixes; a bare host means the whole host.
+ */
+export const SOCIAL_SEARCH_HOSTS = Object.freeze([
+  'linkedin.com/posts', 'linkedin.com/feed/update', 'x.com', 'twitter.com',
+]);
+
+/** Is this URL a social post permalink we may accept as a search hit? @param {string} url */
+export function isSocialHit(url) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  const host = u.hostname.toLowerCase();
+  return SOCIAL_SEARCH_HOSTS.some((entry) => {
+    const [domain, ...rest] = entry.split('/');
+    const prefix = rest.length ? `/${rest.join('/')}` : '';
+    return hostMatches(host, domain) && (!prefix || u.pathname.startsWith(`${prefix}/`) || u.pathname === prefix);
+  });
+}
+
+/**
  * Job aggregators and scraper sites seen in real discovery results (2026-09-22).
  * They re-list other companies' postings, often stale or truncated, so paid
  * discovery excludes them; the employer's own posting is what we want.

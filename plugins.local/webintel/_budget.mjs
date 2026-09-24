@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   firecrawl_min_remaining: 200,     // stop scripts when the server says fewer credits than this remain
   max_pages_per_run: 25,
   max_searches_per_run: 15,
+  max_social_searches_per_run: 6,   // social mode: search + post text in one call (measured $0.007 each, 2026-09-23)
 });
 
 /** Conservative per-unit estimates, used for the pre-call check only (actual Exa cost comes back in costDollars). */

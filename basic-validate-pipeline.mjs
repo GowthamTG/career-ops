@@ -78,11 +78,12 @@ const HARD_DQ_TITLE_TERMS = [
   'mainframe', 'cobol', 'native ios', 'native android', 'salesforce admin',
   'sharepoint', 'm365', '.net', 'oidc', 'saml', 'pki', 'snowflake', 'databricks',
   'power bi', 'tableau', 'matillion',
-  // "Primary language requirement is Java, C++, C#/.NET, or Go with no
-  // frontend/web layer" — ATS titles commonly append the primary language
-  // after a comma (e.g. "Senior Software Engineer, C++"), which is exactly
-  // the signal this catches at the title level, before any JD fetch.
-  'c++', 'c#', 'golang',
+  // "Primary language requirement is Java, C++, or C#/.NET" — ATS titles
+  // commonly append the primary language after a comma (e.g. "Senior Software
+  // Engineer, C++"), which is exactly the signal this catches at the title
+  // level, before any JD fetch. Go was removed 2026-09-23: the candidate is
+  // open to Go backend roles since 2026-09-22.
+  'c++', 'c#',
   // Extra domain terms this repo's own 2026-09-11 scan surfaced as false
   // positives under the current broad "Software Engineer"/"Platform Engineer"
   // positive keywords — hardware/physical-engineering roles that happen to
@@ -108,17 +109,17 @@ const EXPERIENCE_FIRST_RE = /\bexperience[:\s]+(?:of\s+)?(\d{1,2})\s*\+?\s*(?:ye
 const YEAR_RANGE_RE = /\b(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})\s*(?:years?|yrs?)\b/gi;
 // Upper bound at or below this many years = a junior role for this candidate (about 4 yrs).
 const JUNIOR_RANGE_MAX = 3;
-const NO_SPONSORSHIP_RE = /\b(no\s+(?:visa\s+)?sponsorship|unable\s+to\s+sponsor|not\s+(?:able|eligible)\s+(?:to|for)\s+(?:sponsor|sponsorship)|must\s+have\s+(?:existing|current)\s+work\s+authorization|does\s+not\s+(?:offer|provide)\s+(?:visa\s+)?sponsorship|relocation\s+(?:support|assistance|package)\s+(?:is\s+|are\s+)?not\s+(?:provided|available|offered)|relocate\s+independently|(?:unable|not\s+able)\s+to\s+offer\b[^.]{0,80}(?:visa\s+sponsorship|relocation)|(?:must|need\s+to)\s+(?:currently\s+)?(?:reside|live|be\s+based)\s+in)\b/i;
+const NO_SPONSORSHIP_RE = /\b(no\s+(?:visa\s+)?sponsorship|unable\s+to\s+sponsor|not\s+(?:able|eligible)\s+(?:to|for)\s+(?:provide|offer)?\s*(?:visa\s+)?(?:sponsor|sponsorship)|must\s+have\s+(?:existing|current)\s+work\s+authorization|does\s+not\s+(?:offer|provide)\s+(?:visa\s+)?sponsorship|relocation\s+(?:support|assistance|package)\s+(?:is\s+|are\s+)?not\s+(?:provided|available|offered)|relocate\s+independently|(?:unable|not\s+able)\s+to\s+offer\b[^.]{0,80}(?:visa\s+sponsorship|relocation)|(?:must|need\s+to)\s+(?:currently\s+)?(?:reside|live|be\s+based)\s+in)\b/i;
 
 // Positive sponsorship / relocation language (checked only when no negative match).
 const OFFERS_SPONSORSHIP_RE = /\b(visa\s+sponsorship\s+(?:is\s+)?(?:available|provided|offered|supported)|we\s+(?:can\s+|will\s+|do\s+)?sponsor(?:\s+(?:work\s+)?visas?)?|sponsor(?:ship)?\s+(?:for\s+)?(?:work\s+)?visas?|relocation\s+(?:assistance|support|package|bonus|allowance|benefits?)|(?:assist|help)(?:ing)?\s+with\s+(?:your\s+)?(?:visa|relocation)|relocat(?:e|ing)\s+you)\b/i;
 
 // A "Remote" role whose JD confines it to one country/region is not open to a
 // candidate in India. Only fires when the JD names no India/worldwide/APAC scope.
-const REMOTE_RESTRICTED_RE = /\b((?:within|in|from|across)\s+the\s+(?:united\s+states|u\.?s\.?a?\.?)\b|(?:us|u\.s\.|usa)[-\s]?based|must\s+(?:be\s+)?(?:located|based|reside|residing|live)\s+in|(?:latin\s+america|latam)\b|(?:emea|europe|eu|uk|canada|australia|brazil|mexico)\s+only|only\s+(?:open\s+)?to\s+(?:candidates\s+)?(?:in|from|located)|authori[sz]ed\s+to\s+work\s+in\s+the\s+(?:us|u\.s\.|united\s+states|uk|eu)\b|eligible\s+to\s+work\s+in\s+the\s+(?:us|u\.s\.|united\s+states|uk|eu)\b)/i;
+const REMOTE_RESTRICTED_RE = /\b((?:within|in|from|across)\s+the\s+(?:united\s+states|u\.?s\.?a?\.?)\b|(?:us|u\.s\.|usa)[-\s]?based|must\s+(?:be\s+)?(?:located|based|reside|residing|live)\s+in|(?:latin\s+america|latam)\b|(?:emea|europe|eu|uk|canada|australia|brazil|mexico)\s+only|only\s+(?:open\s+)?to\s+(?:candidates\s+)?(?:in|from|located)|authori[sz]ed\s+to\s+work\s+in\s+the\s+(?:us|u\.s\.|united\s+states|uk|eu)\b|eligible\s+to\s+work\s+in\s+the\s+(?:us|u\.s\.|united\s+states|uk|eu)\b|(?:can|will)\s+only\s+hire\s+(?:permanent\s+)?(?:us|u\.s\.|usa|united\s+states)\s+residents?|(?:us|u\.s\.|usa|united\s+states)\s+new\s+hire\s+(?:base\s+)?(?:salary|pay)|hiring\s+(?:only\s+)?in\s+the\s+following\s+states)/i;
 const REMOTE_CANDIDATES_IN_RE = /\bremote\s+for\s+candidates\s+(?:based|located|residing)\s+in\b|\bopen\s+to\s+candidates\s+(?:based|located|residing)\s+in\s+(?:the\s+)?(?:following|these)\b/i;
 const REMOTE_TZ_WITHIN_RE = /\btime\s*zones?\s*\(?\s*within\s*[+\u00b1-]/i;
-const REMOTE_TZ_RE = /\b(?:within|between|in)\s+(?:the\s+)?(?:cet|cest|est|edt|pst|pdt|cst|et|pt|gmt\s?[+-]\s?\d|utc\s?[+-]\s?\d)\b|\b(?:cet|cest|est|edt|pst|pdt)\b[^.\n]{0,30}time\s*zones?/i;
+const REMOTE_TZ_RE = /\b(?:within|between|in)\s+(?:the\s+)?(?:cet|cest|est|edt|pst|pdt|cst|et|pt|gmt\s?[+-]\s?\d|utc\s?[+-]\s?\d)\b|\b(?:cet|cest|est|edt|pst|pdt)\b[^.\n]{0,30}time\s*zones?|\b(?:eastern|central|pacific|mountain)(?:\s*\/\s*(?:eastern|central|pacific|mountain))?\s+time\s*zones?\b/i;
 const REMOTE_ELIGIBLE_RE = /\b(?:eligible|authori[sz]ed|legally\s+(?:entitled|permitted)|right)\s+to\s+work[^.\n]{0,30}\bin\s+(?:the\s+)?(?:us|u\.s\.|usa|united\s+states|uk|united\s+kingdom|eu|european\s+union|germany|france|spain|netherlands|canada|australia|ireland|poland|portugal|italy|switzerland|sweden|denmark|norway|finland|israel|singapore|japan)\b/i;
 const REMOTE_OPEN_RE = /\b(india|worldwide|anywhere\s+in\s+the\s+world|work\s+from\s+anywhere|apac|asia[-\s]pacific)\b/i;
 
@@ -152,6 +153,9 @@ const USAGE = `
                     (cache → Exa contents → Firecrawl; free-tier budget-capped, opt-in)
     --web-limit N   max pages sent to a paid provider this run (default ${DEFAULT_WEB_LIMIT})
     --company <n>   only validate rows for this company (case-insensitive substring)
+    --regate        re-check rows that already have a verdict (title/location/language,
+                    no fetch): newly failing rows get FAIL, stale title-rule FAILs are
+                    cleared so the next normal run gates them again. Honors --dry-run
     --self-test     run the in-memory suite (no subprocess, no network)
 `;
 
@@ -331,7 +335,7 @@ export function locationGate(location, profile, sponsorshipSignal, jdText = '') 
  * @param {string} jdText - JD body, or ''/null when unavailable.
  * @returns {{ pass: boolean, reason: string }}
  */
-export function experienceGate(jdText) {
+export function experienceGate(jdText, skipAtYears = 8) {
   if (!jdText) return { pass: true, reason: 'JD body unavailable — not checked' };
   let worstYears = 0;
   let worstHasEquivalent = true;
@@ -367,7 +371,7 @@ export function experienceGate(jdText) {
   if (rangeMax > 0 && rangeMax <= JUNIOR_RANGE_MAX && worstYears <= JUNIOR_RANGE_MAX) {
     return { pass: false, reason: `JD asks for at most ${rangeMax} years of experience: too junior for this candidate` };
   }
-  if (worstYears >= 8 && !worstHasEquivalent) {
+  if (worstYears >= skipAtYears && !worstHasEquivalent) {
     return { pass: false, reason: `JD states ${worstYears}+ years required with no "or equivalent" flexibility` };
   }
   return { pass: true, reason: worstYears > 0 ? `${worstYears}+ years stated, within range` : 'no disqualifying experience requirement found' };
@@ -427,6 +431,57 @@ export function bodyHardDqGate(jdText) {
   return { pass: true, reason: 'no hard-DQ term found in JD body' };
 }
 
+// ── Gate 6: posting language (added 2026-09-23) ─────────────────────────────
+// A posting written in Korean/Japanese/Chinese, or one that requires fluency in
+// a language outside profile.yml's language.candidate_fluent, is a hard miss.
+// "a plus"/"preferred"/"nice to have" mentions are not requirements.
+
+const CJK_CHAR_RE = /[\u3040-\u30ff\u3130-\u318f\uac00-\ud7af\u4e00-\u9fff]/g;
+const LETTER_RE = /[A-Za-z\u3040-\u30ff\u3130-\u318f\uac00-\ud7af\u4e00-\u9fff]/g;
+const CJK_JD_SHARE = 0.2;
+const LANGUAGES = ['korean', 'japanese', 'mandarin', 'chinese', 'cantonese', 'german', 'french',
+  'spanish', 'portuguese', 'dutch', 'polish', 'italian', 'swedish', 'danish', 'norwegian',
+  'finnish', 'czech', 'turkish', 'arabic', 'hebrew', 'russian', 'vietnamese', 'thai', 'indonesian'];
+const FLUENCY_WORDS = String.raw`(?:fluent|fluency|native|business[- ]level|professional[- ]level|proficien\w*|required|mandatory|must)`;
+const OPTIONAL_RE = /\b(plus|bonus|preferred|nice[- ]to[- ]have|advantage|advantageous|desirable|welcome)\b/i;
+
+/** Years-required cap from profile.yml (target_roles.experience_years.skip_at_required), else 8. */
+export function skipAtYearsFromProfile(profile) {
+  const n = Number(profile?.target_roles?.experience_years?.skip_at_required);
+  return Number.isFinite(n) && n > 0 ? n : 8;
+}
+
+/**
+ * @param {string} title
+ * @param {string} jdText - JD body, or '' when unavailable.
+ * @param {object} profile - parsed config/profile.yml.
+ * @returns {{ pass: boolean, reason: string }}
+ */
+export function languageGate(title, jdText, profile) {
+  if (CJK_CHAR_RE.test(String(title ?? ''))) {
+    CJK_CHAR_RE.lastIndex = 0;
+    return { pass: false, reason: 'title is in Korean/Japanese/Chinese: posting likely needs a language the candidate does not speak' };
+  }
+  CJK_CHAR_RE.lastIndex = 0;
+  const text = String(jdText ?? '');
+  if (!text) return { pass: true, reason: 'JD body unavailable — language not checked' };
+  const letters = (text.match(LETTER_RE) ?? []).length;
+  const cjk = (text.match(CJK_CHAR_RE) ?? []).length;
+  if (letters > 0 && cjk / letters >= CJK_JD_SHARE) {
+    return { pass: false, reason: 'JD is written mostly in Korean/Japanese/Chinese' };
+  }
+  const fluent = (profile?.language?.candidate_fluent ?? ['English']).map(l => String(l).toLowerCase());
+  for (const lang of LANGUAGES) {
+    if (fluent.includes(lang)) continue;
+    const re = new RegExp(String.raw`[^.\n]{0,60}\b(?:${FLUENCY_WORDS}\b[^.\n]{0,40}\b${lang}\b|${lang}\b[^.\n]{0,40}\b${FLUENCY_WORDS}\b)[^.\n]{0,60}`, 'i');
+    const m = re.exec(text);
+    if (m && !OPTIONAL_RE.test(m[0])) {
+      return { pass: false, reason: `JD requires ${lang[0].toUpperCase()}${lang.slice(1)} fluency` };
+    }
+  }
+  return { pass: true, reason: 'no unmet language requirement' };
+}
+
 // ── Row parsing (mirrors rank-pipeline.mjs's parsePendingEntries) ──────────
 
 export function parsePendingRows(text) {
@@ -435,9 +490,15 @@ export function parsePendingRows(text) {
   lines.forEach((raw, index) => {
     if (!raw.startsWith('- [ ] ')) return;
     if (raw.includes(GATE_LABEL)) return;
-    const cells = raw.slice(6).split('|').map(c => c.trim());
-    out.push({
-      index,
+    out.push({ index, ...parseRowCells(raw) });
+  });
+  return out;
+}
+
+/** Cells of one `- [ ] url | company | title | location | ...` pipeline row. */
+function parseRowCells(raw) {
+  const cells = raw.slice(6).split('|').map(c => c.trim());
+  return {
       raw,
       url: cells[0] ?? '',
       company: cells[1] ?? '',
@@ -447,9 +508,48 @@ export function parsePendingRows(text) {
       // `posted:`/`triage:`/`rank:` labeled cell — scan.mjs writes it as a
       // bare "NNN-NNN CURRENCY" token with no label.
       compCell: cells.slice(4).find(c => c && !/^[a-z_]+:/i.test(c) && /\d/.test(c)) ?? '',
-    });
+  };
+}
+
+// ── --regate: re-check rows that already carry a verdict (added 2026-09-23) ──
+// The normal run never overwrites a `gate:` segment, so rule changes never
+// reach the backlog. --regate re-runs the no-fetch gates (title, location,
+// title language) on every gated pending row:
+//   - now fails            → verdict replaced with the new FAIL
+//   - old FAIL came from a title rule that no longer fails → segment removed,
+//     so the next normal run gates the row again (with a JD fetch)
+//   - anything else (PASS that still passes, JD-based FAIL) → left as is
+const GATE_SEGMENT_RE = /\s*\|\s*gate: (PASS|FAIL) — [^|]*/;
+const TITLE_RULE_FAIL_RE = /^(title matches no target archetype keyword|title contains excluded term|title matches hard-DQ domain term|JD body matches hard-DQ term "golang")/;
+
+export function regateText(text, { positive, negative, profile }) {
+  let failed = 0;
+  let ungated = 0;
+  let kept = 0;
+  const out = String(text ?? '').split('\n').map(line => {
+    if (!line.startsWith('- [ ] ') || !line.includes(GATE_LABEL)) return line;
+    const m = GATE_SEGMENT_RE.exec(line);
+    if (!m) return line;
+    const oldVerdict = m[1];
+    const oldReason = m[0].replace(/^\s*\|\s*gate: \S+ — /, '').trim();
+    const stripped = line.replace(GATE_SEGMENT_RE, '');
+    const entry = parseRowCells(stripped);
+    const checks = [
+      titleGate(entry.title, positive, negative),
+      locationGate(entry.location, profile, null, ''),
+      languageGate(entry.title, '', profile),
+    ];
+    const newFail = checks.find(g => !g.pass);
+    if (newFail) {
+      if (oldVerdict === 'FAIL' && oldReason === newFail.reason) { kept += 1; return line; }
+      failed += 1;
+      return `${stripped} | ${formatGateSegment('FAIL', [newFail.reason])}`;
+    }
+    if (oldVerdict === 'FAIL' && TITLE_RULE_FAIL_RE.test(oldReason)) { ungated += 1; return stripped; }
+    kept += 1;
+    return line;
   });
-  return out;
+  return { text: out.join('\n'), failed, ungated, kept };
 }
 
 /**
@@ -504,7 +604,10 @@ export function evaluateEntry(entry, { positiveKeywords, negativeKeywords, profi
   const location = locationGate(entry.location, profile, sponsorshipSignal, jdText);
   if (!location.pass) return { verdict: 'FAIL', reasons: [location.reason] };
 
-  const experience = experienceGate(jdText);
+  const language = languageGate(entry.title, jdText, profile);
+  if (!language.pass) return { verdict: 'FAIL', reasons: [language.reason] };
+
+  const experience = experienceGate(jdText, skipAtYearsFromProfile(profile));
   const comp = compFloorGate(entry.location, entry.compCell, jdText, profile);
   const bodyDq = bodyHardDqGate(jdText);
   const failed = [experience, comp, bodyDq].filter(g => !g.pass);
@@ -517,7 +620,25 @@ export function evaluateEntry(entry, { positiveKeywords, negativeKeywords, profi
 
 // ── JD fetch (zero-LLM: known-ATS API only, same as fetch-jd.mjs) ──────────
 
+/**
+ * Social post rows (LinkedIn/X permalinks from the webintel social mode or
+ * social-ingest.mjs): the post body saved at scan time IS the JD. It is read
+ * from data/.social-posts/, never fetched: those hosts are never requested.
+ * Returns '' when nothing was saved or the plugin is absent.
+ */
+async function socialPostText(url) {
+  try {
+    const { isSocialPostUrl, readPost } = await import('./plugins.local/webintel/_postcache.mjs');
+    if (!isSocialPostUrl(url)) return null;
+    return readPost(join(DATA_ROOT, 'data'), url)?.text ?? '';
+  } catch {
+    return null;
+  }
+}
+
 async function tryFetchJdText(url) {
+  const social = await socialPostText(url);
+  if (social !== null) return social;
   try {
     const { fetchJdViaKnownApi } = await import('./browser-extract.mjs');
     const result = await fetchJdViaKnownApi(url, JD_TEXT_CAP, FETCH_TIMEOUT_MS);
@@ -536,7 +657,8 @@ async function tryFetchJdText(url) {
  * @param {{ limit: number, dryRun: boolean }} opts
  */
 export async function fillJdFromWeb(jdByRow, web, { limit, dryRun }) {
-  const missing = [...jdByRow].filter(([, t]) => !t).map(([e]) => e);
+  // Social post permalinks are never fetched (webintel's policy refuses them anyway).
+  const missing = [...jdByRow].filter(([e, t]) => !t && !/(^|\.)(linkedin\.com|x\.com|twitter\.com)$/i.test(hostOf(e.url))).map(([e]) => e);
   if (!missing.length) return 0;
   const pages = await web.fetchPages(missing.map((e) => e.url), { limit, maxChars: JD_TEXT_CAP, cacheOnly: dryRun });
   let filled = 0;
@@ -545,6 +667,11 @@ export async function fillJdFromWeb(jdByRow, web, { limit, dryRun }) {
     if (doc?.text) { jdByRow.set(e, doc.text); filled += 1; }
   }
   return filled;
+}
+
+/** @param {string} url */
+function hostOf(url) {
+  try { return new URL(url).hostname; } catch { return ''; }
 }
 
 /**
@@ -585,6 +712,18 @@ async function main(args) {
   if (!profile) {
     console.error('config/profile.yml not found — location/comp gates cannot run. See doctor.mjs.');
     return 1;
+  }
+
+  if (hasFlag(args, '--regate')) {
+    let result;
+    await withPipelineLock(PIPELINE_PATH, () => {
+      const current = readFileSync(PIPELINE_PATH, 'utf-8');
+      result = regateText(current, { positive, negative, profile });
+      if (!dryRun && result.text !== current) writeFileSync(PIPELINE_PATH, result.text);
+    });
+    console.log(`${dryRun ? '[dry-run] ' : ''}Re-gated: ${result.failed} now FAIL, ${result.ungated} cleared for re-gating, ${result.kept} unchanged.`);
+    if (result.ungated && !dryRun) console.log('  → Run `node basic-validate-pipeline.mjs --limit N` to gate the cleared rows (with JD fetch).');
+    return 0;
   }
 
   let pending = parsePendingRows(readFileSync(PIPELINE_PATH, 'utf-8'));
@@ -687,6 +826,7 @@ function selfTest() {
   check('dq: c# matches', containsDqTerm('C#, TypeScript', 'c#'));
   check('dq: embedded not inside embeddedness', !containsDqTerm('embeddedness', 'embedded'));
   check('body gate passes a basics JD', bodyHardDqGate('Expert in Linux commands and AWS basics.').pass);
+
 
   const POS = ['Software Engineer', 'Platform Engineer', 'Frontend Engineer', 'Full Stack Engineer'];
   const NEG = ['Junior', 'Intern', 'Test Engineer', 'QA Engineer'];
@@ -815,6 +955,50 @@ function selfTest() {
     dupOut.text.includes('— first') && dupOut.text.includes('— second'));
   check('an already-gated row is skipped by applyAnnotations',
     applyAnnotations(`${dupRaw} | gate: PASS — old`, [{ raw: dupRaw, segment: 'gate: FAIL — new' }]).written === 0);
+
+  // 2026-09-23: experience cap comes from profile.yml (skip_at_required), Go is in scope,
+  // postings in a language the candidate doesn't speak fail, and --regate re-checks old verdicts.
+  check('experience: 6+ fails at skipAt 6', !experienceGate('Requires 6+ years of experience with React.', 6).pass);
+  check('experience: 5+ passes at skipAt 6', experienceGate('Requires 5+ years of experience with React.', 6).pass);
+  check('experience: default cap stays 8', experienceGate('Requires 6+ years of experience with React.').pass);
+  check('title gate: golang backend is in scope', titleGate('Senior Backend Engineer, Golang', POS.concat(['Backend']), NEG).pass);
+  const langProfile = { language: { candidate_fluent: ['English', 'Hindi', 'Tamil'] } };
+  check('language: Hangul title fails', !languageGate('Design Engineer - 디자인 시스템', '', langProfile).pass);
+  check('language: English title passes', languageGate('Senior Frontend Engineer', '', langProfile).pass);
+  check('language: required Korean fluency fails', !languageGate('Backend Engineer', 'Business-level Korean fluency is required.', langProfile).pass);
+  check('language: Korean as a plus passes', languageGate('Backend Engineer', 'Korean language skills are a plus.', langProfile).pass);
+  check('language: fluent in a known language passes', languageGate('Backend Engineer', 'Fluent English required.', langProfile).pass);
+  check('language: JD mostly in Korean fails', !languageGate('Backend Engineer', '우리는 백엔드 엔지니어를 찾고 있습니다. 서비스 개발 경험이 필요합니다.', langProfile).pass);
+  const regProfile = { location: { onsite_cities: ['Bangalore', 'Bengaluru', 'Chennai'], authorized_in: ['India'], needs_sponsorship: true }, language: langProfile.language };
+  const regText = [
+    '- [ ] https://x.test/1 | A | Staff Software Engineer | Remote | gate: PASS — title matches archetype keyword "Software Engineer"',
+    '- [ ] https://x.test/2 | B | Senior Backend Engineer, Golang | Remote | gate: FAIL — title matches hard-DQ domain term "golang"',
+    '- [ ] https://x.test/3 | C | Senior Software Engineer | Remote | gate: FAIL — JD states 9+ years required with no "or equivalent" flexibility',
+    '- [ ] https://x.test/4 | D | Senior Software Engineer | Remote | gate: PASS — title matches archetype keyword "Software Engineer"',
+    '- [x] https://x.test/5 | E | Staff Software Engineer | Remote | gate: PASS — done',
+  ].join('\n');
+  const reg = regateText(regText, { positive: POS.concat(['Backend']), negative: NEG.concat(['Staff Software']), profile: regProfile });
+  const regLines = reg.text.split('\n');
+  check('regate: stale PASS on an excluded title becomes FAIL', regLines[0].includes('gate: FAIL — title contains excluded term "Staff Software"') && !regLines[0].includes('gate: PASS'));
+  check('regate: title-rule FAIL that now passes is un-gated', !regLines[1].includes('gate:'));
+  check('regate: JD-based FAIL is kept', regLines[2] === regText.split('\n')[2]);
+  check('regate: valid PASS is kept', regLines[3] === regText.split('\n')[3]);
+  check('regate: checked-off rows untouched', regLines[4] === regText.split('\n')[4]);
+  check('regate: counts', reg.failed === 1 && reg.ungated === 1 && reg.kept === 2);
+  check('regate: idempotent', regateText(reg.text, { positive: POS.concat(['Backend']), negative: NEG.concat(['Staff Software']), profile: regProfile }).text === reg.text);
+
+  // 2026-09-23: real-world JD phrasings that slipped past sponsorship/remote-scope
+  // detection (found while manually reviewing a shortlist digest).
+  check('sponsorship: "not able to provide visa sponsorship" is a no',
+    sponsorshipSignalFromJd('We are not able to provide visa sponsorship of any kind at this time, including for current or future employment.') === 'no_sponsorship');
+  check('remote-scope: "can only hire permanent US residents" is restricted',
+    remoteScopeFromJd('while we love all parts of the world, we can only hire permanent US residents at this time.') === 'restricted');
+  check('remote-scope: "United States new hire base salary" zones is restricted',
+    remoteScopeFromJd('The United States new hire base salary target ranges for this full-time position are: Zone A: $149,450 - $211,100') === 'restricted');
+  check('remote-scope: spelled-out "Eastern/Central timezones" is restricted',
+    remoteScopeFromJd('we are limiting to Eastern/Central timezones with the expectation that it will be Boston hours.') === 'restricted');
+  check('remote-scope: still open when India/worldwide is also named',
+    remoteScopeFromJd('Remote for candidates based in the United States, India, or worldwide.') === null);
 
   console.log(`\n  basic-validate-pipeline self-test: ${pass} passed, ${fail} failed\n`);
   return fail === 0 ? 0 : 1;

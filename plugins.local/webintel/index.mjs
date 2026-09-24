@@ -12,6 +12,9 @@
 //       published_within_days: 30    # optional freshness filter
 //       min_interval_hours: 72       # cost throttle: inside it, cached hits are returned for $0
 //
+// `mode: social` entries search social post permalinks instead (see _social.mjs),
+// and ONLY when CAREER_OPS_SOCIAL_SCAN=1: social scans run on explicit request.
+//
 // Returns Job[]; scan.mjs applies title/location filters, the blacklist,
 // scan-history dedup and the canonical pipeline write. Every hit is a LEAD: it
 // still needs the browser liveness check before anything is filled.
@@ -22,6 +25,9 @@ import { getCareerOpsRoot } from '../../path-resolver.mjs';
 import { createWebIntel } from './_capabilities.mjs';
 import { AGGREGATOR_HOSTS, DENY_HOSTS, FREE_ATS_HOSTS, hostInList } from './_policy.mjs';
 import { boardOf, hitToJob } from './_jobs.mjs';
+import { runSocialEntry } from './_social.mjs';
+
+let socialSkipNoted = false;
 
 const BOARD_CANDIDATES_HEADER = 'date\tvendor\tslug\tcompany\tsample_url\n';
 
@@ -70,6 +76,29 @@ export default {
       if (!query) throw new Error(`webintel entry "${entry?.name}" needs a \`query:\``);
       const dataDir = path.join(getCareerOpsRoot(), 'data');
       const wi = createWebIntel({ ctx, dataDir, settings: ctx.settings, caller: 'scan' });
+      // `node scan.mjs --dry-run` runs in this same process and must write nothing;
+      // the plugin ctx carries no dry-run flag for provider hooks, so read scan's own flag.
+      const dryRun = process.argv.includes('--dry-run');
+      if (String(entry.mode || '').toLowerCase() === 'social') {
+        // On request only: a plain scan never searches social posts. The user asks
+        // for it (`scan-shortlist.mjs --social` / `--social-only`, which set this).
+        if (process.env.CAREER_OPS_SOCIAL_SCAN !== '1') {
+          if (!socialSkipNoted) {
+            socialSkipNoted = true;
+            console.log('   social: skipped (on request only; run `node scan-shortlist.mjs --social` or `--social-only`)');
+          }
+          return [];
+        }
+        try {
+          const { jobs } = await runSocialEntry(entry, wi, { dataDir, dryRun, log: (s) => console.log(s) });
+          if (!dryRun) recordBoardCandidates(dataDir, jobs);
+          if (wi.stats.exa.calls) console.log(`   ${wi.summary()}`);
+          return jobs;
+        } catch (err) {
+          console.warn(`⚠️  webintel social "${entry.name}": ${/** @type {any} */ (err).message}`);
+          return [];
+        }
+      }
       const includeDomains = asList(entry.include_domains);
       const excludeDomains = [...new Set([...FREE_ATS_HOSTS, ...DENY_HOSTS, ...AGGREGATOR_HOSTS, ...asList(entry.exclude_domains)])];
       const hours = Number(entry.min_interval_hours);
@@ -95,9 +124,7 @@ export default {
         })
         .map(hitToJob)
         .filter(Boolean);
-      // `node scan.mjs --dry-run` runs in this same process and must write nothing;
-      // the plugin ctx carries no dry-run flag for provider hooks, so read scan's own flag.
-      if (!process.argv.includes('--dry-run')) recordBoardCandidates(dataDir, /** @type {any[]} */ (jobs));
+      if (!dryRun) recordBoardCandidates(dataDir, /** @type {any[]} */ (jobs));
       if (wi.stats.exa.calls) console.log(`   ${wi.summary()}`);
       return jobs;
     },

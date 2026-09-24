@@ -4,8 +4,10 @@
 // its contract fixtures; nothing else changes.
 //
 // Cost-safe request shapes (free tier: $10/month):
-//   /search   numResults ≤ 10 (results past 10 are billed extra), no contents,
-//             type 'auto' (never the pricier deep variants)
+//   /search   numResults ≤ 10 (results past 10 are billed extra), no contents
+//             unless the caller asks for capped text (social mode reads a
+//             post's text from the index, ~$0.001/result, instead of fetching
+//             it), type 'auto' (never the pricier deep variants)
 //   /contents plain text only, capped, batched (never summary/highlights)
 // Docs: exa.ai/docs/reference/search, /get-contents, /rate-limits (checked 2026-09-22).
 
@@ -35,7 +37,7 @@ function costOf(json) {
 /**
  * @param {any} json
  * @param {string} retrievedAt
- * @returns {{ hits: Array<{url: string, title: string|null, publishedAt: string|null, snippet: string|null, source: {provider: 'exa', requestId: string|null, retrievedAt: string}}>, costUsd: number|null, requestId: string|null }}
+ * @returns {{ hits: Array<{url: string, title: string|null, publishedAt: string|null, snippet: string|null, author?: string|null, text?: string, source: {provider: 'exa', requestId: string|null, retrievedAt: string}}>, costUsd: number|null, requestId: string|null }}
  */
 export function normalizeExaSearch(json, retrievedAt) {
   if (!json || typeof json !== 'object' || !Array.isArray(json.results)) {
@@ -49,6 +51,8 @@ export function normalizeExaSearch(json, retrievedAt) {
       title: str(r.title),
       publishedAt: str(r.publishedDate),
       snippet: null,
+      // Present only when the search asked for text (social mode).
+      ...(typeof r.text === 'string' ? { text: r.text, author: str(r.author) } : {}),
       source: /** @type {const} */ ({ provider: 'exa', requestId, retrievedAt }),
     }));
   return { hits, costUsd: costOf(json), requestId };
@@ -56,7 +60,8 @@ export function normalizeExaSearch(json, retrievedAt) {
 
 /**
  * @param {any} ctx  plugin ctx (ctx.fetchJson guarded, ctx.env.EXA_API_KEY)
- * @param {{ query: string, numResults?: number, includeDomains?: string[], excludeDomains?: string[], startPublishedDate?: string|null }} q
+ * @param {{ query: string, numResults?: number, includeDomains?: string[], excludeDomains?: string[], startPublishedDate?: string|null, textMaxChars?: number }} q
+ *   textMaxChars > 0 asks for each result's text, capped (billed per result)
  * @param {{ sleep?: (ms: number) => Promise<void>, now?: () => number, onRetry?: (code: string) => void }} [deps]
  */
 export async function exaSearch(ctx, q, deps = {}) {
@@ -64,7 +69,7 @@ export async function exaSearch(ctx, q, deps = {}) {
     query: q.query,
     type: 'auto',
     numResults: Math.max(1, Math.min(MAX_RESULTS, q.numResults ?? MAX_RESULTS)),
-    contents: { text: false },
+    contents: q.textMaxChars && q.textMaxChars > 0 ? { text: { maxCharacters: Math.min(5000, Math.floor(q.textMaxChars)) } } : { text: false },
   };
   // Send include OR exclude, not both: when a search is pinned to domains, the
   // exclude list is applied client-side (see _capabilities.mjs).

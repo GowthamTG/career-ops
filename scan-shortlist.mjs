@@ -2,13 +2,16 @@
 /**
  * scan-shortlist.mjs: the one command. scan -> gate -> resolve leads -> digest.
  *
- *   node scan-shortlist.mjs [--deep] [--web] [--dry-run] [--skip-scan] [--include-touched]
+ *   node scan-shortlist.mjs [--deep] [--web] [--social|--social-only] [--dry-run] [--skip-scan] [--include-touched]
  *
  *   (default)          scan.mjs -> gate -> resolve-leads -> gate -> digest
  *   --deep             also run scan-ats-full.mjs --since 7 (Greenhouse/Lever/Ashby, ~1.5 h)
  *   --web              opt-in free-tier web help (plugins.local/webintel): the gate reads non-ATS
  *                      JDs via Exa/Firecrawl and resolve-leads searches for board-less companies'
  *                      postings. Budget-capped per run and per month; see `node webintel.mjs usage`
+ *   --social           ALSO search LinkedIn hiring posts (portals.yml `mode: social` entries, ~$0.007
+ *                      each via Exa). Social scans run ONLY when asked: without this flag they are skipped
+ *   --social-only      search only the LinkedIn hiring posts (no board scan), then gate/resolve/digest
  *   --skip-scan        skip the network scan; re-gate, resolve and digest what is in pipeline.md
  *   --dry-run          no network and no writes to pipeline.md: only builds the digest
  *   --include-touched  keep companies already in the tracker (default: hidden)
@@ -26,7 +29,8 @@ import { spawnSync } from 'child_process';
 import { normalizeCompany } from './tracker-utils.mjs';
 import { getCareerOpsRoot } from './path-resolver.mjs';
 import { isMainModule } from './lib/is-main-module.mjs';
-import { parseLeadRow, leadHostOf } from './resolve-leads.mjs';
+import { parseLeadRow, leadHostOf, SOCIAL_LEAD_HOSTS } from './resolve-leads.mjs';
+import { companyTokens, matchCompany, parseConnections } from './linkedin-join.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)); // codebase root (scripts, providers)
 const DATA_ROOT = getCareerOpsRoot(); // user-layer root (data/, reports/)
@@ -37,7 +41,7 @@ const BLACKLIST = join(DATA_ROOT, 'data/blacklist.md');
 // ── Fit rules (pure, unit-tested) ────────────────────────────────────────────
 
 const TITLE_INCLUDE = /(back[\s-]?end|api engineer|front[\s-]?end|full[\s-]?stack|react|\bui\b|\bweb\b|product engineer|design engineer|founding engineer|member of technical staff|software (engineer|developer)|\bsde\b|application engineer|analytics engineer|data platform|forward deployed|agent)/i;
-const TITLE_EXCLUDE = /(silicon|logic design|machine design|civil|mechanical|electrical|structural|physical design|analog|\brf\b|chip|distributed systems|low[- ]latency|high[- ]performance|storage engine|compiler|database internals|(?<!technical )staff|principal|\blead\b|manager|director|\bhead\b|architect|intern\b|internship|junior|\bjr\b|trainee|fresher|associate software|native|android|\bios\b|react native|flutter|swift|kotlin|devops|\bsre\b|\bqa\b|quality|test|automation|data engineer|data scientist|machine learning|\bml\b|security|embedded|firmware|network|kernel|\bsap\b|salesforce|servicenow|mainframe|\bphp\b|ruby|scala|\.net|dotnet|java(?!script)|c\+\+|golang|\bgo\b developer|blockchain|solidity|new grad|graduate|research|\bic\b|mixed-signal|\bgtm\b|sales|mobile|systems software|infrastructure|\binfra\b|platform diagnostics|audit|logging|gen ?ai engineer|rtl|verification|hardware)/i;
+const TITLE_EXCLUDE = /(silicon|logic design|machine design|civil|mechanical|electrical|structural|physical design|analog|\brf\b|chip|distributed systems|low[- ]latency|high[- ]performance|storage engine|compiler|database internals|(?<!technical )staff|principal|\blead\b|manager|director|\bhead\b|architect|intern\b|internship|junior|\bjr\b|trainee|fresher|associate software|(?<!ai[- ])native|android|\bios\b|react native|flutter|swift|kotlin|devops|\bsre\b|\bqa\b|quality|test|automation|data engineer|data scientist|machine learning|\bml\b|security|embedded|firmware|network|kernel|\bsap\b|salesforce|servicenow|mainframe|\bphp\b|ruby|scala|\.net|dotnet|java(?!script)|c\+\+|golang|\bgo\b developer|blockchain|solidity|new grad|graduate|research|\bic\b|mixed-signal|\bgtm\b|sales|mobile|systems software|infrastructure|\binfra\b|platform diagnostics|audit|logging|gen ?ai engineer|rtl|verification|hardware)/i;
 const BACKEND_ONLY = /(back[\s-]?end)/i;
 const FRONT_OR_FULL = /(front[\s-]?end|full[\s-]?stack|react|\bui\b|\bweb\b)/i;
 
@@ -117,6 +121,8 @@ export function parseDigestRow(line) {
   const gate = /\| gate: (PASS|FAIL) — (.*?)(?= \| (?:via|posted|rank|triage)\b|$)/.exec(row.rest);
   const posted = /\| posted: (\d{4}-\d{2}-\d{2})/.exec(row.rest);
   const via = /\| via: (\S+)/.exec(row.rest);
+  const note = /\| note: ([^|]*)/.exec(row.rest);
+  const leadHost = leadHostOf(row.url);
   return {
     url: row.url,
     company: row.company,
@@ -127,7 +133,11 @@ export function parseDigestRow(line) {
     posted: posted?.[1] ?? '',
     via: via?.[1] ?? '',
     needsBrowser: /\| needs-browser-check\b/.test(row.rest),
-    leadHost: leadHostOf(row.url),
+    leadHost,
+    // A LinkedIn/X post that no employer posting was matched to yet.
+    social: SOCIAL_LEAD_HOSTS.includes(leadHost),
+    poster: /\bby ([^;]+)/.exec(note?.[1] ?? '')?.[1]?.trim() ?? '',
+    agencyNote: /\bagency ([^;]+)/.exec(note?.[1] ?? '')?.[1]?.trim() ?? '',
   };
 }
 
@@ -139,7 +149,7 @@ export function ageDays(iso, now = Date.now()) {
 
 /**
  * Bucket a parsed row, or null to drop it.
- * A = employer board or resolved lead, India/remote. B = unresolved lead
+ * A = employer board or resolved lead, India/remote. S = LinkedIn/X hiring post not yet matched to an employer posting. B = unresolved lead
  * (verify in the browser). C = abroad. D = agency / client unnamed.
  */
 export function classify(r, ctx) {
@@ -163,6 +173,8 @@ export function classify(r, ctx) {
     return /JD body unavailable/i.test(r.reason) ? 'X' : 'F';
   }
   if (region === 'unknown') return null;
+  // Hiring posts: the post text passed the gate, but no employer posting exists yet.
+  if (r.social) return 'S';
   if (!isStrongTitle(r.title)) return 'E';
   // A means the JD was actually read and passed. No JD read = unverified = section B.
   if (r.leadHost || r.needsBrowser || /JD body unavailable/i.test(r.reason)) return 'B';
@@ -201,9 +213,11 @@ function loadBlacklist() {
 
 // ── Digest ───────────────────────────────────────────────────────────────────
 
-const SECTION_CAP = { A: 60, B: 50, C: 40, D: 30, E: 30, F: 60 };
+const SECTION_CAP = { A: 60, S: 40, B: 50, C: 40, D: 30, E: 30, F: 60 };
+const ORDER = ['A', 'S', 'B', 'C', 'F', 'D', 'E'];
 const TITLES = {
   A: 'A. India or remote, on the employer\'s own board (best leads)',
+  S: 'S. Hiring posts on LinkedIn/X (post read, no employer posting matched yet: open the post, apply through the link or the poster)',
   B: 'B. India or remote leads from job portals: verify in the browser first',
   C: 'C. Abroad, on-site or hybrid (visa sponsorship stated or silent)',
   D: 'D. Recruitment agencies / client unnamed (kept separate, not counted toward a batch)',
@@ -214,8 +228,32 @@ const TITLES = {
 /** @param {string} s */
 const esc = (s) => String(s ?? '').replace(/\|/g, '/');
 
+/**
+ * First-degree LinkedIn connections at this company, from data/Connections.csv
+ * (linkedin-join.mjs). Operational only, never a score input. '-' without the export.
+ * @param {string} company
+ * @param {Array<{ name: string, company: string }>|undefined} connections
+ */
+export function warmIntro(company, connections) {
+  if (!connections?.length) return '-';
+  const target = companyTokens(company);
+  const hits = connections.filter((c) => ['exact', 'strong'].includes(matchCompany(target, companyTokens(c.company)) ?? ''));
+  if (!hits.length) return 'none';
+  return `${hits.length}: ${hits.slice(0, 2).map((c) => c.name).join(', ')}${hits.length > 2 ? ', …' : ''}`;
+}
+
+function loadConnections() {
+  const file = join(DATA_ROOT, 'data/Connections.csv');
+  if (!existsSync(file)) return [];
+  try {
+    return parseConnections(readFileSync(file, 'utf-8')).connections;
+  } catch {
+    return [];
+  }
+}
+
 export function buildDigest(lines, ctx, date) {
-  const buckets = { A: [], B: [], C: [], D: [], E: [], F: [] };
+  const buckets = { A: [], S: [], B: [], C: [], D: [], E: [], F: [] };
   const seen = new Set();
   let considered = 0;
   let hiddenAbroad = 0;
@@ -237,13 +275,23 @@ export function buildDigest(lines, ctx, date) {
   out += `Zero-LLM digest of ${considered} pending pipeline rows. Only roles that passed the gate, fit frontend/full-stack/product titles, and are not already in your tracker or blacklist. `;
   out += `Nothing here is verified live: open the link in the browser before filling anything. Section C lists abroad roles that offer visa sponsorship or relocation; section F lists abroad roles whose JD does not mention sponsorship (${hiddenAbroad} more are hidden because the JD could not be read or the title is generic).\n\n`;
   out += `| Section | Roles |\n|---|---|\n`;
-  for (const k of ['A', 'B', 'C', 'F', 'D', 'E']) out += `| ${k} | ${buckets[k].length} |\n`;
+  for (const k of ORDER) out += `| ${k} | ${buckets[k].length} |\n`;
   out += '\n';
-  for (const k of ['A', 'B', 'C', 'F', 'D', 'E']) {
+  for (const k of ORDER) {
     const rows = buckets[k].sort(byPosted);
     out += `## ${TITLES[k]}\n\n`;
     if (!rows.length) {
       out += '_None this run._\n\n';
+      continue;
+    }
+    if (k === 'S') {
+      out += '| Company | Role | Location | Posted | Posted by | Warm intro | Link |\n|---|---|---|---|---|---|---|\n';
+      for (const r of rows.slice(0, SECTION_CAP[k])) {
+        const by = [r.poster, r.agencyNote ? `agency: ${r.agencyNote}` : ''].filter(Boolean).join('; ') || '-';
+        out += `| ${esc(r.company)} | ${esc(r.title)} | ${esc(r.location)} | ${r.posted || '-'} | ${esc(by)} | ${esc(warmIntro(r.company, ctx.connections))} | ${r.url} |\n`;
+      }
+      if (rows.length > SECTION_CAP[k]) out += `\n_${rows.length - SECTION_CAP[k]} more not shown (cap ${SECTION_CAP[k]})._\n`;
+      out += '\n';
       continue;
     }
     out += '| Company | Role | Location | Posted | JD read | Link |\n|---|---|---|---|---|---|\n';
@@ -384,6 +432,8 @@ function selfTest() {
   const bi = parseDigestRow('- [ ] https://builtin.com/job/x/1 | Q | Frontend Engineer | Bengaluru, India | gate: PASS — on-site in an approved city');
   check('login-walled host dropped', classify(bi, ctx) === null);
   check('mobile excluded', !titleFits('Software Engineer - Mobile App Development'));
+  check('react native excluded', !titleFits('React Native Developer'));
+  check('AI-native is not mobile', titleFits('Senior Backend Engineer (Node.js, AI-Native)'));
   check('alias: Neon folds into Databricks', companyKey('Neon') === companyKey('Databricks'));
   check('alias: touched Databricks hides Neon row', classify(parseDigestRow('- [ ] https://x.test/n | Neon | Full Stack Developer | Bengaluru, India | gate: PASS — on-site in an approved city'), { ...ctx, touched: new Set([companyKey('Databricks')]) }) === null);
   check('region-only title dropped', classify(parseDigestRow('- [ ] https://x.test/r | Nich | Analytics Engineer (Brazil and Argentina Only) | Remote | gate: PASS — remote'), ctx) === null);
@@ -399,6 +449,14 @@ function selfTest() {
   check('board candidates dedupe by vendor/slug', bc.length === 2);
   const dBoards = buildDigest([], { ...ctx, boardCandidates: bc }, '2026-09-22').markdown;
   check('digest lists new boards, drops agencies', dBoards.includes('acme-zz9') && !dBoards.includes('weekday-1'));
+  const post = '- [ ] https://www.linkedin.com/posts/a_hiring-activity-1-x | Recrew AI | Frontend Developer | Bangalore | posted: 2026-09-18 | note: linkedin-post; by A Poster (Coding Co); no apply link in post | gate: PASS — title ok; on-site in an approved city';
+  const pr = parseDigestRow(post);
+  check('social row parsed with poster', pr.social && pr.poster === 'A Poster (Coding Co)');
+  check('social row goes to S', classify(pr, ctx) === 'S');
+  const resolved = post.replace('https://www.linkedin.com/posts/a_hiring-activity-1-x', 'https://jobs.ashbyhq.com/recrew/1') + ' | via: linkedin.com';
+  check('resolved social row goes to A', classify(parseDigestRow(resolved), ctx) === 'A');
+  check('digest renders S table', buildDigest([post], ctx, '2026-09-20').markdown.includes('| Posted by | Warm intro |'));
+  check('warm intro counts strong matches', warmIntro('Recrew AI', [{ name: 'A B', company: 'Recrew AI' }, { name: 'C D', company: 'Other' }]) === '1: A B');
   console.log(`  scan-shortlist self-test: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
@@ -410,8 +468,14 @@ async function main() {
   const web = args.includes('--web');
   const started = Date.now();
 
-  if (!dry && !args.includes('--skip-scan')) {
-    step('Fast scan (tracked companies + job boards)', 'node', ['scan.mjs']);
+  const socialOnly = args.includes('--social-only');
+  // Social post searches are opt-in per run; the webintel plugin reads this.
+  if (socialOnly || args.includes('--social')) process.env.CAREER_OPS_SOCIAL_SCAN = '1';
+  else delete process.env.CAREER_OPS_SOCIAL_SCAN;
+  if (!dry && !args.includes('--skip-scan') && socialOnly) {
+    step('Social scan (LinkedIn hiring posts, on request)', 'node', ['scan.mjs', '--company', 'Social:']);
+  } else if (!dry && !args.includes('--skip-scan')) {
+    step(`Fast scan (tracked companies + job boards${process.env.CAREER_OPS_SOCIAL_SCAN ? ' + LinkedIn hiring posts' : ''})`, 'node', ['scan.mjs']);
     if (args.includes('--deep')) {
       step('Deep ATS scan (Greenhouse/Lever/Ashby, last 7 days): this takes a long time', 'node', ['scan-ats-full.mjs', '--since', '7', '--ats', 'greenhouse,lever,ashby']);
     }
@@ -425,14 +489,14 @@ async function main() {
   const lines = readFileSync(PIPELINE, 'utf-8').split('\n');
   const ai = args.indexOf('--max-age-days');
   const maxAgeDays = ai >= 0 ? Math.max(0, Number(args[ai + 1]) || 0) : 45;
-  const ctx = { blacklist: loadBlacklist(), touched: loadTouched(), includeTouched: args.includes('--include-touched'), maxAgeDays, now: Date.now(), boardCandidates: loadBoardCandidates() };
+  const ctx = { blacklist: loadBlacklist(), touched: loadTouched(), includeTouched: args.includes('--include-touched'), maxAgeDays, now: Date.now(), boardCandidates: loadBoardCandidates(), connections: loadConnections() };
   const date = today();
   const { markdown, counts, considered } = buildDigest(lines, ctx, date);
   const outPath = join(DATA_ROOT, `data/shortlist-${date}.md`);
   writeFileSync(outPath, markdown);
   const mins = ((Date.now() - started) / 60000).toFixed(1);
   console.log(`\n✅ Digest: ${outPath}`);
-  console.log(`   ${considered} rows considered -> A ${counts.A} | B ${counts.B} | C ${counts.C} | F ${counts.F} | D ${counts.D} | E ${counts.E}  (${mins} min)`);
+  console.log(`   ${considered} rows considered -> A ${counts.A} | S ${counts.S} | B ${counts.B} | C ${counts.C} | F ${counts.F} | D ${counts.D} | E ${counts.E}  (${mins} min)`);
   if (ctx.boardCandidates.length) console.log(`   ${ctx.boardCandidates.length} new ATS board(s) from web discovery are listed at the end of the digest.`);
   if (web && !dry) step('Free-tier web budget (Exa/Firecrawl)', 'node', ['webintel.mjs', 'usage']);
 }

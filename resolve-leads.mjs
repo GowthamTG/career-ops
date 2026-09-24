@@ -39,6 +39,7 @@ import { makeHttpCtx } from './providers/_http.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
 import { getCareerOpsRoot } from './path-resolver.mjs';
 import { isMainModule } from './lib/is-main-module.mjs';
+import { withPipelineLock } from './pipeline-lock.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url)); // codebase root (scripts, providers)
 const DATA_ROOT = getCareerOpsRoot(); // user-layer root (data/, reports/)
@@ -52,6 +53,11 @@ const DEFAULT_WEB_LIMIT = 15;
 const WEB_CACHE_MS = CACHE_TTL_MS;
 
 export const LEAD_HOSTS = ['instahyre.com', 'hirist.tech', 'hirist.com', 'cutshort.io'];
+// Social "we're hiring" posts (webintel social mode, social-ingest.mjs): the row
+// carries the post permalink when the post had no apply link. The post itself is
+// never fetched; only the employer's own board is.
+export const SOCIAL_LEAD_HOSTS = ['linkedin.com', 'x.com', 'twitter.com'];
+const ALL_LEAD_HOSTS = [...LEAD_HOSTS, ...SOCIAL_LEAD_HOSTS];
 // Only ATS families whose provider lists a full board and whose JD the repo can fetch.
 const BOARD_VENDORS = ['gh', 'ashby', 'lever', 'workable', 'smartrecruiters', 'recruitee', 'breezy', 'bamboohr'];
 
@@ -61,7 +67,7 @@ const BOARD_VENDORS = ['gh', 'ashby', 'lever', 'workable', 'smartrecruiters', 'r
 export function leadHostOf(url) {
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    return LEAD_HOSTS.find((h) => host === h || host.endsWith(`.${h}`)) ?? null;
+    return ALL_LEAD_HOSTS.find((h) => host === h || host.endsWith(`.${h}`)) ?? null;
   } catch {
     return null;
   }
@@ -251,6 +257,7 @@ async function pool(items, limit, fn) {
 
 async function run({ dryRun, limit, useWeb = false, webLimit = DEFAULT_WEB_LIMIT }) {
   const lines = readFileSync(PIPELINE_PATH, 'utf-8').split('\n');
+  const original = [...lines];
   /** @type {Map<string, number[]>} company key -> line indexes */
   const byCompany = new Map();
   for (let i = 0; i < lines.length; i++) {
@@ -350,7 +357,14 @@ async function run({ dryRun, limit, useWeb = false, webLimit = DEFAULT_WEB_LIMIT
     console.log('--dry-run: nothing written.');
     return stats;
   }
-  writeFileSync(PIPELINE_PATH, lines.join('\n'));
+  // Probing took minutes; the scanner or gate may have written meanwhile. Re-read
+  // under the pipeline lock and swap only the lines this run changed.
+  const changed = new Map();
+  for (let i = 0; i < lines.length; i++) if (lines[i] !== original[i]) changed.set(original[i], lines[i]);
+  await withPipelineLock(PIPELINE_PATH, () => {
+    const current = readFileSync(PIPELINE_PATH, 'utf-8').split('\n');
+    writeFileSync(PIPELINE_PATH, current.map((l) => changed.get(l) ?? l).join('\n'));
+  });
   writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2));
   return stats;
 }
@@ -371,6 +385,8 @@ function selfTest() {
   check('leadHostOf cutshort', leadHostOf('https://cutshort.io/job/abc') === 'cutshort.io');
   check('leadHostOf rejects lookalike', leadHostOf('https://instahyre.com.evil.io/x') === null);
   check('leadHostOf rejects greenhouse', leadHostOf('https://boards.greenhouse.io/x/jobs/1') === null);
+  check('leadHostOf linkedin post', leadHostOf('https://www.linkedin.com/posts/a_hiring-activity-1-x') === 'linkedin.com');
+  check('leadHostOf x post', leadHostOf('https://x.com/acme/status/123') === 'x.com');
   check('similarity ignores seniority', titleSimilarity('Senior Frontend Developer', 'Frontend Developer') === 1);
   check('similarity normalizes front-end', titleSimilarity('Front-End Engineer', 'Frontend Engineer') === 1);
   check('similarity low for unrelated', titleSimilarity('React Developer', 'Data Scientist') < 0.3);

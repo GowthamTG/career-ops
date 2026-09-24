@@ -183,7 +183,8 @@ test('engine: loads only when enabled + keyed; ctx is scoped and pinned to the t
   mkdirSync(path.join(root, 'config'), { recursive: true });
   // The plugin imports a few core modules relative to the repo root.
   const repo = new URL('../../../', import.meta.url).pathname;
-  for (const f of ['path-resolver.mjs', 'url-key.mjs', 'plugins/_net.mjs']) symlinkSync(path.join(repo, f), path.join(root, f));
+  // providers/ for _postparse.mjs's reuse of telegram-channel.mjs applicationLink().
+  for (const f of ['path-resolver.mjs', 'url-key.mjs', 'plugins/_net.mjs', 'providers']) symlinkSync(path.join(repo, f), path.join(root, f));
   const cfg = path.join(root, 'config', 'plugins.yml');
   const saved = { ...process.env };
   try {

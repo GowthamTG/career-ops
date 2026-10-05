@@ -2284,6 +2284,9 @@ search_queries:
 #   provider: tes
 #   # keywords: maths       # optional: Tes's own keyword search, applied server-side
 #   # max_pages: 40         # optional page cap (50 postings/page, default 150, max 400)
+# - name: Relocate.me                     # tech jobs that come with relocation / visa support
+#   provider: relocateme
+#   max_pages: 3                          # optional, default and hard cap set in providers/relocateme.mjs
 #   enabled: true
 #
 # - name: getManfred                      # Spanish/EU tech roles, salary ranges published

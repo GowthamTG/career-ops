@@ -113,6 +113,7 @@ writing-samples/*
 # User config and customization (never auto-updated)
 config/profile.yml
 config/cv-facts.json
+config/resume-variants.json
 config/benchmarks.yml
 config/naukri-answers.yml
 # Fork-local path declarations — this checkout's own files, read by

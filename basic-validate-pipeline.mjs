@@ -123,10 +123,45 @@ const REMOTE_TZ_RE = /\b(?:within|between|in)\s+(?:the\s+)?(?:cet|cest|est|edt|p
 const REMOTE_ELIGIBLE_RE = /\b(?:eligible|authori[sz]ed|legally\s+(?:entitled|permitted)|right)\s+to\s+work[^.\n]{0,30}\bin\s+(?:the\s+)?(?:us|u\.s\.|usa|united\s+states|uk|united\s+kingdom|eu|european\s+union|germany|france|spain|netherlands|canada|australia|ireland|poland|portugal|italy|switzerland|sweden|denmark|norway|finland|israel|singapore|japan)\b/i;
 const REMOTE_OPEN_RE = /\b(india|worldwide|anywhere\s+in\s+the\s+world|work\s+from\s+anywhere|apac|asia[-\s]pacific)\b/i;
 
+// The candidate works in IST. A JD that states its remote window as UTC offsets
+// ("±3 hours from UTC+8", "UTC+4 to UTC+9") is open to them when IST falls inside it.
+const IST_OFFSET = 5.5;
+const UTC_OFFSET = String.raw`(?:utc|gmt)\s*([+\-−])\s*(\d{1,2})(?::(\d{2}))?`;
+const TZ_SPREAD_RE = new RegExp(String.raw`(?:±|\+\/-|\+-|plus\s+or\s+minus)\s*(\d{1,2})\s*(?:h|hrs?|hours?)\b[^.\n]{0,20}?${UTC_OFFSET}|${UTC_OFFSET}\s*(?:±|\+\/-|\+-)\s*(\d{1,2})\s*(?:h|hrs?|hours?)?`, 'i');
+const TZ_RANGE_RE = new RegExp(String.raw`${UTC_OFFSET}\s*(?:to|-|–|and)\s*${UTC_OFFSET}`, 'i');
+
+/** @returns {number} */
+function utcOffset(sign, hours, minutes) {
+  const value = Number(hours) + Number(minutes ?? 0) / 60;
+  return sign === '+' ? value : -value;
+}
+
+/**
+ * Whether IST falls inside a remote window the JD states in UTC offsets.
+ * @param {string} text @returns {boolean|null} null when the JD states no such window
+ */
+export function istWithinStatedWindow(text) {
+  const spread = TZ_SPREAD_RE.exec(text);
+  if (spread) {
+    const [, h1, s1, o1, m1, s2, o2, m2, h2] = spread;
+    const center = s1 ? utcOffset(s1, o1, m1) : utcOffset(s2, o2, m2);
+    return Math.abs(IST_OFFSET - center) <= Number(h1 ?? h2);
+  }
+  const range = TZ_RANGE_RE.exec(text);
+  if (range) {
+    const [, s1, o1, m1, s2, o2, m2] = range;
+    const [lo, hi] = [utcOffset(s1, o1, m1), utcOffset(s2, o2, m2)].sort((a, b) => a - b);
+    return IST_OFFSET >= lo && IST_OFFSET <= hi;
+  }
+  return null;
+}
+
 /** @param {string} jdText @returns {'restricted'|null} */
 export function remoteScopeFromJd(jdText) {
   const text = String(jdText ?? '');
   if (!text) return null;
+  const window = istWithinStatedWindow(text);
+  if (window !== null) return window ? null : 'restricted';
   const restricted = REMOTE_RESTRICTED_RE.test(text) || REMOTE_TZ_RE.test(text) || REMOTE_ELIGIBLE_RE.test(text) || REMOTE_CANDIDATES_IN_RE.test(text) || REMOTE_TZ_WITHIN_RE.test(text);
   return restricted && !REMOTE_OPEN_RE.test(text) ? 'restricted' : null;
 }
@@ -999,6 +1034,16 @@ function selfTest() {
     remoteScopeFromJd('we are limiting to Eastern/Central timezones with the expectation that it will be Boston hours.') === 'restricted');
   check('remote-scope: still open when India/worldwide is also named',
     remoteScopeFromJd('Remote for candidates based in the United States, India, or worldwide.') === null);
+  check('remote-scope: "±3 hours from UTC+8" includes IST, so open',
+    remoteScopeFromJd('Location: Singapore. Additional locations: Remote (±3 hours from UTC+8)') === null);
+  check('remote-scope: "UTC+1 ± 2h" excludes IST, so restricted',
+    remoteScopeFromJd('Remote within UTC+1 ± 2h') === 'restricted');
+  check('remote-scope: "UTC+4 to UTC+9" range includes IST',
+    remoteScopeFromJd('We hire remotely between UTC+4 to UTC+9.') === null);
+  check('remote-scope: "GMT-5 to GMT-8" range excludes IST',
+    remoteScopeFromJd('Remote, GMT-5 to GMT-8 only') === 'restricted');
+  check('remote-scope: "+/- 2 hours of UTC+5:30" includes IST',
+    istWithinStatedWindow('overlap +/- 2 hours of UTC+5:30') === true);
 
   console.log(`\n  basic-validate-pipeline self-test: ${pass} passed, ${fail} failed\n`);
   return fail === 0 ? 0 : 1;

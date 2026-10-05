@@ -108,7 +108,7 @@ function buildPayload(id) {
   };
 }
 
-function build(id) {
+function build(id, { quick = false } = {}) {
   const v = cfg.variants[id];
   mkdirSync(WORK, { recursive: true });
   const jsonPath = join(WORK, `${id}.json`);
@@ -136,6 +136,13 @@ function build(id) {
   writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace(
     /\.skills-grid\s*\{[^}]*\}\s*\.skill-item\s*\{([^}]*)\}/,
     '.skills-grid { display: block; }\n  .skill-item { $1 display: block; margin-bottom: 2px; }'));
+
+  if (quick) {
+    // page-fit trial only: render the PDF and count pages (used by `rank`)
+    const q = run('generate-pdf.mjs', [htmlPath, pdfPath, `--format=${cfg.page_format}`, '--max-pages=2'], { allowFail: true });
+    if (q.status !== 0) die(`PDF render failed for ${id}:\n${q.stdout}\n${q.stderr}`);
+    return { id, pages: (readFileSync(pdfPath, 'latin1').match(/\/Type\s*\/Page[^s]/g) || []).length };
+  }
 
   const titles = run('cv-title-check.mjs', [jsonPath, '--summary'], { allowFail: true });
   const structure = run('verify-cv-structure.mjs', [jsonPath], { allowFail: true });
@@ -239,6 +246,67 @@ function select(file, opts) {
   }
 }
 
+
+// ---- rank: fill each resume with the highest-scoring points that fit two pages ----
+const ROLE_OF = { ly_: 'lyric', dv_: 'devrev', in_: 'intern' };
+function rank(id) {
+  const ri = cfg.scores._order.indexOf(id);
+  if (ri < 0) die(`no score column for variant "${id}"`);
+  const v = cfg.variants[id];
+  const min = cfg.rank?.min_score ?? 5;
+  const mins = cfg.rank?.min_bullets ?? { lyric: 3, devrev: 5, intern: 1 };
+  const total = (arr) => arr.reduce((a, b) => a + b, 0);
+  const items = [];
+  for (const bid of Object.keys(cfg.bullets)) {
+    const role = ROLE_OF[bid.slice(0, 3)];
+    items.push({ kind: 'exp', role, id: bid, s: cfg.scores[bid][ri], g: total(cfg.scores[bid]) });
+  }
+  for (const [k, p] of Object.entries(cfg.projects_pool)) {
+    (p.bullet_scores || []).forEach((sc, idx) => items.push({ kind: 'proj', k, idx, s: sc[ri], g: total(sc) }));
+  }
+  const maxes = cfg.rank?.max_bullets ?? { lyric: 6, devrev: 9, intern: 2 };
+  const byScore = (a, b) => b.s - a.s || b.g - a.g;
+  const chosen = new Set();
+  const key = (it) => (it.kind === 'exp' ? it.id : `${it.k}#${it.idx}`);
+  const apply = () => {
+    const picked = items.filter((it) => chosen.has(key(it)));
+    v.experience = { lyric: [], devrev: [], intern: [] };
+    for (const it of picked.filter((x) => x.kind === 'exp').sort(byScore)) v.experience[it.role].push(it.id);
+    const projects = {};
+    for (const it of picked.filter((x) => x.kind === 'proj')) (projects[it.k] ||= []).push(it);
+    const ordered = Object.entries(projects).sort((a, b) => Math.max(...b[1].map((x) => x.s)) - Math.max(...a[1].map((x) => x.s)));
+    v.projects = ordered.map(([k]) => k);
+    v.project_bullets = Object.fromEntries(ordered.map(([k, arr]) => [k, arr.sort(byScore).map((x) => x.idx)]));
+  };
+  // seed: the minimum bullets every role section needs, best first
+  for (const [role, n] of Object.entries(mins)) {
+    items.filter((x) => x.kind === 'exp' && x.role === role).sort(byScore).slice(0, n).forEach((x) => chosen.add(key(x)));
+  }
+  apply();
+  if (build(id, { quick: true }).pages > 2) die(`seed bullets for ${id} already exceed two pages`);
+  const log = [];
+  const count = (role) => items.filter((x) => x.kind === 'exp' && x.role === role && chosen.has(key(x))).length;
+  for (const it of items.filter((x) => !chosen.has(key(x)) && x.s >= min).sort(byScore)) {
+    if (it.kind === 'exp' && count(it.role) >= (maxes[it.role] ?? 99)) { log.push({ it, in: false, cap: true }); continue; }
+    chosen.add(key(it));
+    apply();
+    if (build(id, { quick: true }).pages > 2) { chosen.delete(key(it)); log.push({ it, in: false }); } else log.push({ it, in: true });
+  }
+  apply();
+  return { items, chosen, log, key };
+}
+
+function writeRankReport(results) {
+  const out = ['# Resume point ranking, by role\n', 'Every point in the pool is scored 0 to 10 per role in config/resume-variants.json. Each resume takes the highest-scoring points that fit two pages (minimum score ' + (cfg.rank?.min_score ?? 5) + ', and every company keeps its minimum). Edit a score, then run `node resume-variants.mjs rank all` and `build all`.\n'];
+  for (const [id, r] of Object.entries(results)) {
+    const label = (it) => it.kind === 'exp' ? `${it.id}: ${cfg.bullets[it.id].replace(/\*\*/g, '').slice(0, 85)}` : `${it.k} bullet ${it.idx + 1}: ${cfg.projects_pool[it.k].bullets[it.idx].replace(/\*\*/g, '').slice(0, 75)}`;
+    const inc = r.items.filter((x) => r.chosen.has(r.key(x))).sort((a, b) => b.s - a.s);
+    const exc = r.items.filter((x) => !r.chosen.has(r.key(x))).sort((a, b) => b.s - a.s);
+    out.push(`## ${cfg.variants[id].label}\n\n### Included (${inc.length})\n` + inc.map((x) => `- ${x.s}/10 ${label(x)}`).join('\n') + `\n\n### Left out (${exc.length})\n` + exc.map((x) => `- ${x.s}/10 ${label(x)}${x.s >= (cfg.rank?.min_score ?? 5) ? ' (no room or section cap)' : ' (below minimum score)'}`).join('\n') + '\n');
+  }
+  writeFileSync(join(OUT, 'resume-ranking.md'), out.join('\n'));
+}
+
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   const flag = (n) => { const i = rest.indexOf(n); return i >= 0 ? rest[i + 1] : undefined; };
@@ -251,6 +319,16 @@ function main() {
     const ids = which === 'all' ? Object.keys(cfg.variants) : [which];
     const results = ids.map(build);
     console.log(JSON.stringify(results, null, 2));
+    return;
+  }
+  if (cmd === 'rank') {
+    const which = rest[0] && !rest[0].startsWith('--') ? rest[0] : 'all';
+    const ids = which === 'all' ? Object.keys(cfg.variants) : [which];
+    const results = {};
+    for (const id of ids) { results[id] = rank(id); console.log(`${id}: ${results[id].chosen.size} points selected`); }
+    writeFileSync(CONFIG, JSON.stringify(cfg, null, 2));
+    writeRankReport(results);
+    console.log(`wrote ${join(OUT, 'resume-ranking.md')}; now run: node resume-variants.mjs build all`);
     return;
   }
   if (cmd === 'select') {

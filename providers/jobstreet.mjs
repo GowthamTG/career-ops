@@ -52,6 +52,10 @@ const ALLOWED_JOBSTREET_HOSTS = new Set([
   'my.jobstreet.com',
   // SEEK's Hong Kong property keeps the JobsDB brand; same v5 search API.
   'hk.jobsdb.com',
+  // Thailand (JobsDB) and the Philippines (Jobstreet) — same SEEK v5 API,
+  // verified answering plain JSON on 2026-10-03.
+  'th.jobsdb.com',
+  'ph.jobstreet.com',
   'www.seek.com.au',
   'www.seek.co.nz',
 ]);

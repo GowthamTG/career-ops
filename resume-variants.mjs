@@ -95,7 +95,12 @@ function buildPayload(id) {
     summary: v.summary,
     competencies: v.competencies,
     experience,
-    projects: pick(cfg.projects_pool, v.projects, 'project'),
+    projects: v.projects.map((k) => {
+      const { bullets, ...rest } = pick(cfg.projects_pool, [k], 'project')[0];
+      const keep = v.project_bullets?.[k];
+      const chosen = bullets ? (keep ? keep.map((i) => bullets[i]) : bullets) : null;
+      return chosen ? { ...rest, description: chosen.join('\u241e') } : rest;
+    }),
     education: cfg.education,
     certifications: cfg.certifications,
     awards: pick(cfg.awards_pool, v.awards, 'award'),
@@ -113,6 +118,15 @@ function build(id) {
 
   const template = run('cv-templates.mjs', ['resolve', 'cv']).stdout.trim();
   run('build-cv-html.mjs', [jsonPath, htmlPath, template]);
+  // project bullets: split the sentinel-joined description into a real <ul>, with bold labels, and set a plain title
+  writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8')
+    .replace(/<div class="project-desc">([^<]*?)<\/div>/g, (m, body) => {
+      if (!body.includes('\u241e')) return m;
+      const li = body.split('\u241e').map((b) => `<li>${b.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')}</li>`).join('');
+      return `<ul class="project-bullets">${li}</ul>`;
+    })
+    .replace('</style>', '  .project-bullets { padding-left: 18px; margin-top: 4px; }\n  .project-bullets li { font-size: 10.5px; line-height: 1.6; color: #333; margin-bottom: 3px; }\n  .project-bullets li strong { font-weight: 600; }\n  </style>')
+    .replace(/<title>[^<]*<\/title>/, '<title>Gowtham T G Resume</title>'));
   // contact row on one line: tighter gaps and no wrapping so "Bangalore, India" does not drop to a second line
   writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace('</style>', '  .contact-row { flex-wrap: nowrap; gap: 4px 7px; font-size: 9.6px; white-space: nowrap; }\n  </style>'));
   // pool links: turn [text](https://url) in bullets into real anchors (builder has no link syntax)

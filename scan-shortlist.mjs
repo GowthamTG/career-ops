@@ -65,6 +65,22 @@ export function companyKey(name) {
   return COMPANY_ALIASES[key] ?? key;
 }
 
+// Board slugs and tracker names spell the same employer differently
+// ("diligentcorporation" vs "Diligent", "Sarvam" vs "Sarvam AI"), so the
+// touched check compares keys with trailing corporate suffixes stripped.
+const COMPANY_SUFFIX = /(ai|inc|corporation|corp|security|labs?|technologies|technology|software|internal|careers|hq|llc|ltd|group|india|\d+)$/;
+
+/** companyKey with trailing corporate suffixes removed, never shorter than 3 chars. */
+export function companyStem(name) {
+  let key = companyKey(name);
+  for (let prev = ''; prev !== key;) {
+    prev = key;
+    const next = key.replace(COMPANY_SUFFIX, '');
+    if (next.length >= 3) key = next;
+  }
+  return key;
+}
+
 // A title that names a region-only role ("(Brazil and Argentina Only)", "[REMOTE - Canada]").
 const TITLE_REGION_ONLY = /((brazil|argentina|mexico|latam|latin america|canada|usa?|united states|uk|europe|emea|germany|france|spain|poland|portugal|australia)\b[^,)\]]{0,20}\bonly\b|remote\s*[-–:\[(]\s*(canada|usa?|united states|uk|europe|latam|brazil|argentina|mexico|germany|france|spain)\b|\((?:usa?|uk|canada)\)\s*$)/i;
 
@@ -160,7 +176,7 @@ export function classify(r, ctx) {
   if (titleRegionRestricted(r.title)) return null;
   if (r.posted && ctx.maxAgeDays && ageDays(r.posted, ctx.now) > ctx.maxAgeDays) return null;
   if (IT_SERVICES.test(r.company) || ctx.blacklist.has(key)) return null;
-  if (!ctx.includeTouched && ctx.touched.has(key)) return null;
+  if (!ctx.includeTouched && (ctx.touched.has(key) || ctx.touched.has(companyStem(r.company)))) return null;
   if (r.company === '?' || AGENCY.test(r.company)) return 'D';
   const region = regionOf(r.location, r.reason);
   // Abroad roles are only worth listing when the JD offers sponsorship/relocation;
@@ -190,7 +206,7 @@ function loadTouched() {
     if (!line.startsWith('|')) continue;
     const cells = line.split('|').map((c) => c.trim());
     // | # | Date | Company | Role | ...  -> cells[3]
-    if (/^\d+$/.test(cells[1] ?? '') && cells[3]) set.add(companyKey(cells[3]));
+    if (/^\d+$/.test(cells[1] ?? '') && cells[3]) { set.add(companyKey(cells[3])); set.add(companyStem(cells[3])); }
   }
   return set;
 }
@@ -399,7 +415,13 @@ function selfTest() {
   const readRow = parseDigestRow('- [ ] https://boards.greenhouse.io/x/jobs/2 | Acme | Senior Frontend Engineer | Bengaluru, India | posted: 2026-09-18 | gate: PASS — title ok; on-site in an approved city; 3+ years stated, within range');
   check('classify A when the JD was read', classify(readRow, ctx) === 'A');
   check('classify drops touched company', classify(r, { ...ctx, touched: new Set([normalizeCompany('Acme')]) }) === null);
-  check('include-touched keeps it', classify(readRow, { ...ctx, touched: new Set([normalizeCompany('Acme')]), includeTouched: true }) === 'A');
+  check('companyStem folds board slugs onto tracker names',
+    companyStem('diligentcorporation') === companyStem('Diligent') && companyStem('Sarvam AI') === companyStem('Sarvam')
+    && companyStem('abnormalsecurity') === companyStem('Abnormal AI') && companyStem('coupanginternal') === companyStem('Coupang'));
+  check('companyStem keeps distinct companies apart', companyStem('Metabase') !== companyStem('Meta') && companyStem('Scale AI') === 'scale');
+  check('classify drops a touched company under a slug spelling',
+    classify(readRow, { ...ctx, touched: new Set([companyStem('Acme Inc')]) }) === null);
+  check('include-touched keeps it',classify(readRow, { ...ctx, touched: new Set([normalizeCompany('Acme')]), includeTouched: true }) === 'A');
   check('classify drops blacklisted', classify(r, { ...ctx, blacklist: new Set([normalizeCompany('Acme')]) }) === null);
   const lead = parseDigestRow('- [ ] https://www.instahyre.com/job-1-x/ | Foo | Frontend Developer | Bangalore | gate: PASS — ok; on-site in an approved city | needs-browser-check');
   check('classify B for unresolved lead', classify(lead, ctx) === 'B');

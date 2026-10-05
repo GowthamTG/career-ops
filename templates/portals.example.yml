@@ -1671,6 +1671,11 @@ search_queries:
 #   provider: jobicy
 #   enabled: true
 #
+# - name: Relocate.me                     # tech jobs that come with relocation / visa support
+#   provider: relocateme
+#   max_pages: 3                          # optional, default and hard cap set in providers/relocateme.mjs
+#   enabled: true
+#
 # - name: getManfred                      # Spanish/EU tech roles, salary ranges published
 #   provider: manfred
 #   lang: EN                              # EN or ES; the API rejects the call without it

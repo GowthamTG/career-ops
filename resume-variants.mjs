@@ -163,6 +163,11 @@ function build(id, { quick = false } = {}) {
     issues = (j.issues || []).map((i) => i.message || String(i));
   } catch { /* leave placeholders */ }
 
+  // upload copies: same PDF under a neutral file name in a per-variant folder, so an ATS shows
+  // "Gowtham TG Resume.pdf" and not the variant label
+  const upDir = join(OUT, 'upload', id);
+  mkdirSync(upDir, { recursive: true });
+  copyFileSync(pdfPath, join(upDir, `${cfg.default_alias || 'Resume'}.pdf`));
   if (id === cfg.default_variant && cfg.default_alias) {
     copyFileSync(pdfPath, join(OUT, `${cfg.default_alias}.pdf`));
   }

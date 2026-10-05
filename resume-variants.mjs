@@ -113,6 +113,8 @@ function build(id) {
 
   const template = run('cv-templates.mjs', ['resolve', 'cv']).stdout.trim();
   run('build-cv-html.mjs', [jsonPath, htmlPath, template]);
+  // contact row on one line: tighter gaps and no wrapping so "Bangalore, India" does not drop to a second line
+  writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace('</style>', '  .contact-row { flex-wrap: nowrap; gap: 4px 7px; font-size: 9.6px; white-space: nowrap; }\n  </style>'));
   // pool links: turn [text](https://url) in bullets into real anchors (builder has no link syntax)
   writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>'));
   // One skills category per line: the template's flex-wrap row lets short

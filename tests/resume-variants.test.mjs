@@ -23,11 +23,19 @@ if (!cfg) {
   const text = JSON.stringify(cfg);
   /—/.test(text) ? fail('em dash found in config/resume-variants.json') : pass('no em dashes in variant text');
 
-  const nums = new Set();
-  for (const b of Object.values(cfg.bullets)) for (const m of b.matchAll(/\*\*([^*]+)\*\*/g)) nums.add(m[1]);
-  const absent = [...nums].filter((n) => !cv.includes(n.replace(/ with 0 downtime$/, '').replace(/^(\d+\+ REST APIs).*/, '$1')) && !cv.includes(n));
-  const strict = absent.filter((n) => !/^20\+ REST APIs|^100\+|^1K\+|^200K\+|^15\+|^\$250K|^\$1M|^600%|^10x|^20%|^30%|^25%|^60%|^40%|^5K\+|^1M\+/.test(n));
-  strict.length === 0 ? pass('every bolded metric is a figure that cv.md carries') : fail(`metrics not in cv.md: ${strict.join(', ')}`);
+  // Every bullet's plain text (bold and links stripped) must appear verbatim in cv.md,
+  // so no number or claim exists in a resume that the source of truth lacks.
+  const plain = (t) => t.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*/g, '');
+  const cvPlain = cv.replace(/\*\*/g, '');
+  const usedIds = new Set(ids.flatMap((id) => Object.values(cfg.variants[id].experience).flat()));
+  const absent = [...usedIds].filter((b) => !cvPlain.includes(plain(cfg.bullets[b])));
+  absent.length === 0 ? pass('every used bullet appears verbatim in cv.md') : fail(`bullets not in cv.md: ${absent.join(', ')}`);
+
+  const parens = [...usedIds].filter((b) => /\([^)]*\)/.test(plain(cfg.bullets[b])));
+  parens.length === 0 ? pass('no bracketed asides inside bullets') : fail(`bullets with parentheses: ${parens.join(', ')}`);
+
+  const labelled = [...usedIds].filter((b) => !/^\*\*[^:*]+: [^*]+\*\*/.test(cfg.bullets[b]));
+  labelled.length === 0 ? pass('every bullet follows **Label: bold result** then a by-clause') : fail(`bullets without a bold label and result: ${labelled.join(', ')}`);
 
   const select = (jd, args = []) => JSON.parse(execFileSync(NODE, [join(ROOT, 'resume-variants.mjs'), 'select', '-', '--json', ...args], { input: jd, cwd: ROOT, encoding: 'utf-8' }));
   select('Senior Frontend Engineer\nReact, Next.js, CSS, design system').recommended === 'frontend' ? pass('frontend JD routes to frontend') : fail('frontend JD misrouted');

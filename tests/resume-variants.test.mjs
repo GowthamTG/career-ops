@@ -37,6 +37,16 @@ if (!cfg) {
   const labelled = [...usedIds].filter((b) => !/^\*\*[^:*]+: [^*]+\*\*/.test(cfg.bullets[b]));
   labelled.length === 0 ? pass('every bullet follows **Label: bold result** then a by-clause') : fail(`bullets without a bold label and result: ${labelled.join(', ')}`);
 
+  // ATS safety: the only non-ASCII character allowed in the config is the en dash in role dates
+  // (it must match cv.md for the title check; the builder renders it as a plain hyphen).
+  const odd = [...new Set([...text].filter((ch) => ch.charCodeAt(0) > 127 && ch !== '\u2013'))];
+  odd.length === 0 ? pass('resume text is plain ASCII (no multiplication signs, smart quotes or em dashes)') : fail(`non-ASCII characters in config: ${odd.join(' ')}`);
+
+  const projBullets = Object.values(cfg.projects_pool).flatMap((p) => p.bullets || []);
+  const projLabelled = projBullets.filter((b) => !/^\*\*[^:*]+: [^*]+\*\*/.test(b));
+  projLabelled.length === 0 ? pass('every project bullet follows the bold label and result pattern') : fail(`project bullets without a bold label and result: ${projLabelled.length}`);
+  projBullets.some((b) => /\([^)]*\)/.test(b.replace(/\*\*/g, ''))) ? fail('project bullet has a bracketed aside') : pass('no bracketed asides in project bullets');
+
   const select = (jd, args = []) => JSON.parse(execFileSync(NODE, [join(ROOT, 'resume-variants.mjs'), 'select', '-', '--json', ...args], { input: jd, cwd: ROOT, encoding: 'utf-8' }));
   select('Senior Frontend Engineer\nReact, Next.js, CSS, design system').recommended === 'frontend' ? pass('frontend JD routes to frontend') : fail('frontend JD misrouted');
   select('Backend Engineer\nNode.js microservices, PostgreSQL, Kafka, distributed systems').recommended === 'backend' ? pass('backend JD routes to backend') : fail('backend JD misrouted');

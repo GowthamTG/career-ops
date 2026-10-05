@@ -113,6 +113,8 @@ function build(id) {
 
   const template = run('cv-templates.mjs', ['resolve', 'cv']).stdout.trim();
   run('build-cv-html.mjs', [jsonPath, htmlPath, template]);
+  // pool links: turn [text](https://url) in bullets into real anchors (builder has no link syntax)
+  writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>'));
   // One skills category per line: the template's flex-wrap row lets short
   // categories run together in text extraction ("... MCP Cloud: AWS, GCP").
   writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace(

@@ -71,9 +71,11 @@ function buildPayload(id) {
     if (!cfg.bullets[bid]) die(`variant ${id}: unknown bullet id "${bid}"`);
     return cfg.bullets[bid];
   };
-  const experience = ['lyric', 'devrev', 'intern'].map((key) => ({
+  // The intern year and the full-time years are one employer, so they print as one entry:
+  // the full-time bullets first, the intern-year bullets after them, under one date range.
+  const experience = ['lyric', 'devrev'].map((key) => ({
     ...cfg.roles[key],
-    bullets: v.experience[key].map(bullet),
+    bullets: (key === 'devrev' ? [...v.experience.devrev, ...v.experience.intern] : v.experience[key]).map(bullet),
   }));
   const pick = (pool, ids, what) =>
     ids.map((k) => {

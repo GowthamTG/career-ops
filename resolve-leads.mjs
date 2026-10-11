@@ -428,7 +428,9 @@ function selfTest() {
 
 const args = process.argv.slice(2);
 if (isMainModule(import.meta.url)) {
-  if (args.includes('--self-test')) selfTest();
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('usage: node resolve-leads.mjs [--dry-run] [--limit N] [--web] [--web-limit N] [--self-test]');
+  } else if (args.includes('--self-test')) selfTest();
   else {
     const li = args.indexOf('--limit');
     const limit = li >= 0 ? Math.max(1, Number(args[li + 1]) || DEFAULT_LIMIT) : DEFAULT_LIMIT;

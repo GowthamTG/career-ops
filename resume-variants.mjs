@@ -131,6 +131,10 @@ function build(id, { quick = false } = {}) {
     .replace(/<title>[^<]*<\/title>/, '<title>Gowtham T G Resume</title>'));
   // contact row on one line: tighter gaps and no wrapping so "Bangalore, India" does not drop to a second line
   writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace('</style>', '  .contact-row { flex-wrap: nowrap; gap: 4px 7px; font-size: 9.6px; white-space: nowrap; }\n  </style>'));
+  // empty consent block: drop the div and its `:empty { display:none }` rule (nothing is hidden, but verify-ats reads display:none as keyword stuffing)
+  writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8')
+    .replace(/<div class="cv-consent">\s*<\/div>/g, '')
+    .replace(/\s*\.cv-consent:empty\s*\{\s*display:\s*none;\s*\}/g, ''));
   // pool links: turn [text](https://url) in bullets into real anchors (builder has no link syntax)
   writeFileSync(htmlPath, readFileSync(htmlPath, 'utf-8').replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>'));
   // One skills category per line: the template's flex-wrap row lets short

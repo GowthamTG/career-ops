@@ -485,6 +485,10 @@ function selfTest() {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('usage: node scan-shortlist.mjs [--dry-run] [--skip-scan] [--deep] [--web] [--social | --social-only] [--include-touched] [--max-age-days N] [--self-test]');
+    return;
+  }
   if (args.includes('--self-test')) return selfTest();
   const dry = args.includes('--dry-run');
   const web = args.includes('--web');

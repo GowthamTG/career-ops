@@ -59,6 +59,10 @@ export function cardsToJobs(cards, f) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('usage: node linkedin-ingest.mjs --file cards.txt [--dry-run]\n       node linkedin-ingest.mjs --self-test');
+    return;
+  }
   if (args.includes('--self-test')) return selfTest();
   const file = args[args.indexOf('--file') + 1];
   if (!file || args.indexOf('--file') < 0) { console.error('usage: node linkedin-ingest.mjs --file cards.txt [--dry-run]'); process.exit(2); }

@@ -62,7 +62,7 @@ if (!cfg) {
     bad.length === 0 ? pass('each resume lists every company best-first by its role score') : fail(`ranking problems: ${bad.join('; ')}`);
   }
 
-  const select = (jd, args = []) => JSON.parse(execFileSync(NODE, [join(ROOT, 'resume-variants.mjs'), 'select', '-', '--json', ...args], { input: jd, cwd: ROOT, encoding: 'utf-8' }));
+  const select = (jd, args = []) => JSON.parse(execFileSync(NODE, [join(ROOT, 'resume-variants.mjs'), 'select', '-', '--json', ...args], { input: jd, cwd: ROOT, encoding: 'utf-8', env: { ...process.env, CAREER_OPS_ROOT: ROOT } }));
   select('Senior Frontend Engineer\nReact, Next.js, CSS, design system').recommended === 'frontend' ? pass('frontend JD routes to frontend') : fail('frontend JD misrouted');
   select('Backend Engineer\nNode.js microservices, PostgreSQL, Kafka, distributed systems').recommended === 'backend' ? pass('backend JD routes to backend') : fail('backend JD misrouted');
   select('Senior Full Stack Engineer\nReact and Node.js').recommended === 'fullstack' ? pass('full stack JD routes to full stack') : fail('full stack JD misrouted');

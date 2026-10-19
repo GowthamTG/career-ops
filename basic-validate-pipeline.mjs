@@ -55,12 +55,12 @@ import { flagValue, hasFlag, safeIntFlag } from './lib/cli-flags.mjs';
 import { sanitizeMarkdownField } from './scan.mjs';
 import { withPipelineLock } from './pipeline-lock.mjs';
 import { isMainModule } from './lib/is-main-module.mjs';
-import { getCareerOpsRoot } from './path-resolver.mjs';
+import { getCareerOpsRoot, getProfilePath } from './path-resolver.mjs';
 
 const DATA_ROOT = getCareerOpsRoot();
 const PIPELINE_PATH = join(DATA_ROOT, 'data', 'pipeline.md');
 const PORTALS_PATH = join(DATA_ROOT, 'portals.yml');
-const PROFILE_PATH = join(DATA_ROOT, 'config', 'profile.yml');
+const PROFILE_PATH = getProfilePath(DATA_ROOT);
 
 const GATE_LABEL = '| gate: ';
 const DEFAULT_LIMIT = 100;

@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync } from 'child_process';
-import { getCareerOpsRoot } from './path-resolver.mjs';
+import { getCareerOpsRoot, getProfilePath } from './path-resolver.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DATA = getCareerOpsRoot();
@@ -51,7 +51,7 @@ function run(script, args, { allowFail = false } = {}) {
 
 function profile() {
   // Minimal read of the few profile.yml scalars we need (no YAML dependency).
-  const y = readFileSync(join(DATA, 'config', 'profile.yml'), 'utf-8');
+  const y = readFileSync(getProfilePath(DATA), 'utf-8');
   const get = (key) => (y.match(new RegExp(`^\\s*${key}:\\s*"([^"]*)"`, 'm')) || [])[1] || '';
   return {
     name: get('full_name'),

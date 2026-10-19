@@ -75,12 +75,12 @@ import { readFileSync, existsSync, mkdirSync, appendFileSync, readlinkSync, unli
 import * as yaml from 'js-yaml';
 import { join } from 'path';
 import { homedir, platform } from 'os';
-import { getCareerOpsRoot } from './path-resolver.mjs';
+import { getCareerOpsRoot, getProfilePath } from './path-resolver.mjs';
 
 const ROOT = getCareerOpsRoot();
 const ISOLATED_SESSION_STATE = join(ROOT, 'data', '.naukri-session', 'state.json');
 const LOG_PATH = join(ROOT, 'data', 'naukri-applied.tsv');
-const PROFILE_PATH = join(ROOT, 'config', 'profile.yml');
+const PROFILE_PATH = getProfilePath(ROOT);
 const ANSWERS_PATH = join(ROOT, 'config', 'naukri-answers.yml');
 
 function defaultChromeUserDataDir() {

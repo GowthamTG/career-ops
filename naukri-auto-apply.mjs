@@ -72,7 +72,7 @@
 
 import { chromium } from 'playwright';
 import { readFileSync, existsSync, mkdirSync, appendFileSync, readlinkSync, unlinkSync } from 'fs';
-import * as yaml from 'js-yaml';
+import { loadYaml as parseYaml } from './lib/yaml-document.mjs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
 import { getCareerOpsRoot, getProfilePath } from './path-resolver.mjs';
@@ -127,7 +127,7 @@ const ISOLATED_SESSION = !has('--real-chrome-profile'); // default: isolated ses
 
 function loadYaml(path) {
   if (!existsSync(path)) return null;
-  return yaml.load(readFileSync(path, 'utf8')) || {};
+  return parseYaml(readFileSync(path, 'utf8')) || {};
 }
 
 const profile = loadYaml(PROFILE_PATH);

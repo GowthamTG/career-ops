@@ -50,7 +50,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import * as yaml from 'js-yaml';
+import { loadYaml } from './lib/yaml-document.mjs';
 import { flagValue, hasFlag, safeIntFlag } from './lib/cli-flags.mjs';
 import { sanitizeMarkdownField } from './scan.mjs';
 import { withPipelineLock } from './pipeline-lock.mjs';
@@ -198,7 +198,7 @@ const USAGE = `
 
 function loadPortalsConfig() {
   if (!existsSync(PORTALS_PATH)) return { positive: [], negative: [] };
-  const doc = yaml.load(readFileSync(PORTALS_PATH, 'utf-8')) ?? {};
+  const doc = loadYaml(readFileSync(PORTALS_PATH, 'utf-8')) ?? {};
   const tf = doc.title_filter ?? {};
   return {
     positive: Array.isArray(tf.positive) ? tf.positive : [],
@@ -208,7 +208,7 @@ function loadPortalsConfig() {
 
 function loadProfile() {
   if (!existsSync(PROFILE_PATH)) return null;
-  return yaml.load(readFileSync(PROFILE_PATH, 'utf-8')) ?? null;
+  return loadYaml(readFileSync(PROFILE_PATH, 'utf-8')) ?? null;
 }
 
 // ── Gate 1: archetype/title relevance ───────────────────────────────────────

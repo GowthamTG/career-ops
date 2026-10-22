@@ -36,7 +36,7 @@
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
-import * as yaml from 'js-yaml';
+import { loadYaml } from './lib/yaml-document.mjs';
 import { getCareerOpsRoot } from './path-resolver.mjs';
 import { isMainModule } from './lib/is-main-module.mjs';
 import { localToday } from './lib/local-today.mjs';
@@ -122,7 +122,7 @@ function arg(args, name) {
 
 function loadPortals() {
   const p = join(DATA_ROOT, 'portals.yml');
-  return existsSync(p) ? yaml.load(readFileSync(p, 'utf-8')) : {};
+  return existsSync(p) ? loadYaml(readFileSync(p, 'utf-8')) : {};
 }
 
 async function ingest({ network, file, dryRun }) {

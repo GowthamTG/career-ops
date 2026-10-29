@@ -77,10 +77,10 @@ const floor = NODE_MIN.split('.').slice(0, 2).join('.');
   const lockGot = lock.packages?.['']?.engines?.node;
   ok(lockGot === NODE_ENGINES, `web/package-lock.json root engines.node is "${NODE_ENGINES}" (found ${JSON.stringify(lockGot)})`);
 
-  // The CI floor job. Exact match: a bare major ('22') resolves to the newest
-  // 22.x, so it would run without testing the floor.
+  // CI uses the patched 22.x baseline while API-floor checks above retain
+  // coverage of older versions without executing a vulnerable runtime.
   const wf = readFileSync(join(ROOT, '.github', 'workflows', 'test.yml'), 'utf8');
   const step = wf.match(/- name: Set up the Node floor[^\n]*\n(?:[^\n]*\n){0,3}?\s*node-version:\s*'([^']+)'/);
   ok(step !== null, 'test.yml has a "Set up the Node floor" step with a node-version');
-  if (step) ok(step[1] === floor, `test.yml's floor step runs Node '${floor}' (found '${step[1]}')`);
+  if (step) ok(step[1] === '22.23.4', `test.yml's floor step runs patched Node '22.23.4' (found '${step[1]}')`);
 }

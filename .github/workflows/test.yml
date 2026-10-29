@@ -46,14 +46,14 @@ jobs:
         with:
           # Test code (fork code, in a merge_group) must not find a token in .git/config.
           persist-credentials: false
-      # The declared floor (lib/node-floor.mjs, package.json engines). Exact on
-      # purpose: a bare '22' resolves to the newest 22.x and tests nothing.
+      # Keep the syntax check on a patched runtime (CVE-2026-111497).
+      # The API compatibility floor remains in lib/node-floor.mjs.
       # Renovate is told to leave node-version in this file alone (renovate.json);
-      # tests/node-floor.test.mjs fails if this drifts from NODE_MIN.
-      - name: Set up the Node floor (22.13) for syntax compatibility
+      # tests/node-floor.test.mjs pins this security baseline.
+      - name: Set up the Node floor (22.23.4 security patch) for syntax compatibility
         uses: actions/setup-node@v7
         with:
-          node-version: '22.13'
+          node-version: '22.23.4'
       - run: npm run lint
       - name: Set up Node 24 for the test suite
         uses: actions/setup-node@v7
